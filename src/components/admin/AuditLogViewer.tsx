@@ -11,11 +11,15 @@ export const AuditLogViewer: React.FC = () => {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const res = await fetch('/api/reports/audit-logs', {
+        const res = await fetch('/api/audit-logs', {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
-          setLogs(await res.json());
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const data = await res.json();
+            setLogs(Array.isArray(data) ? data : []);
+          }
         }
       } catch (err) {
         console.error('Failed to fetch audit logs:', err);
@@ -24,7 +28,7 @@ export const AuditLogViewer: React.FC = () => {
       }
     };
     fetchLogs();
-  }, []);
+  }, [token]);
 
   return (
     <div className="space-y-6">

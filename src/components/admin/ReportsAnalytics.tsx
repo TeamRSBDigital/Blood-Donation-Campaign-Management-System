@@ -11,7 +11,10 @@ export const ReportsAnalytics: React.FC = () => {
       try {
         const res = await fetch('/api/reports/stats');
         if (res.ok) {
-          setStats(await res.json());
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            setStats(await res.json());
+          }
         }
       } catch (err) {
         console.error('Failed to load stats:', err);

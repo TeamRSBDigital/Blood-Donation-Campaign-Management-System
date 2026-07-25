@@ -331,7 +331,7 @@ async function startServer() {
   });
 
   // Audit Logs
-  app.get('/api/audit-logs', authMiddleware, superAdminOnly, (req, res) => {
+  app.get(['/api/audit-logs', '/api/reports/audit-logs'], authMiddleware, superAdminOnly, (req, res) => {
     res.json(dbService.getAuditLogs());
   });
 

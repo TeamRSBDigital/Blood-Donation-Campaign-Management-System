@@ -30,8 +30,11 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ onNavigateTab }) =
       try {
         const res = await fetch('/api/reports/stats');
         if (res.ok) {
-          const data = await res.json();
-          setStats(data);
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const data = await res.json();
+            setStats(data);
+          }
         }
       } catch (err) {
         console.error('Failed to load dashboard stats:', err);
