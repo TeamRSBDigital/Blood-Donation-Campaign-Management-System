@@ -8,7 +8,8 @@ import { Footer } from './components/Footer.js';
 import { HomePage } from './components/home/HomePage.js';
 import { DonorSearch } from './components/DonorSearch.js';
 import { PublicRequestBoard } from './components/PublicRequestBoard.js';
-import { PublicBloodRequestForm } from './components/PublicBloodRequestForm.tsx';
+import { PublicBloodRequestPage } from './components/PublicBloodRequestPage.js';
+import { PublicBloodRequestForm } from './components/PublicBloodRequestForm.js';
 import { CampaignsSection } from './components/CampaignsSection.js';
 import { BecomeDonorSection } from './components/BecomeDonorSection.js';
 import { EmergencyDirectory } from './components/EmergencyDirectory.js';
@@ -21,9 +22,16 @@ const AppContent: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname;
       const searchParams = new URLSearchParams(window.location.search);
       if (
-        window.location.pathname.includes('/search') ||
+        pathname.includes('/request-blood') ||
+        pathname.includes('/request_blood')
+      ) {
+        return 'request-blood';
+      }
+      if (
+        pathname.includes('/search') ||
         searchParams.has('blood_group') ||
         searchParams.has('bloodGroup')
       ) {
@@ -75,7 +83,7 @@ const AppContent: React.FC = () => {
           }
         }}
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
-        onOpenPublicRequestModal={() => setIsRequestModalOpen(true)}
+        onOpenPublicRequestModal={() => setActiveTab('request-blood')}
       />
 
       {/* Main View Content */}
@@ -95,9 +103,13 @@ const AppContent: React.FC = () => {
 
         {activeTab === 'requests' && (
           <PublicRequestBoard
-            onOpenNewRequestModal={() => setIsRequestModalOpen(true)}
+            onOpenNewRequestModal={() => setActiveTab('request-blood')}
             onFilterDonorsForGroup={(group) => handleSelectBloodGroup(group)}
           />
+        )}
+
+        {activeTab === 'request-blood' && (
+          <PublicBloodRequestPage onNavigateRequests={() => setActiveTab('requests')} />
         )}
 
         {activeTab === 'campaigns' && <CampaignsSection />}

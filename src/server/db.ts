@@ -11,7 +11,8 @@ import {
   GalleryImage,
   EmergencyContact,
   DonationHistory,
-  AvailabilityStatus
+  AvailabilityStatus,
+  Notification
 } from '../types/index.js';
 
 const DATA_FILE_PATH = path.join(process.cwd(), 'pbda_data.json');
@@ -26,6 +27,7 @@ interface DatabaseSchema {
   galleryImages: GalleryImage[];
   emergencyContacts: EmergencyContact[];
   donationHistories: DonationHistory[];
+  notifications: Notification[];
 }
 
 // Initial Admin Passwords (Hashed during seed initialization if string matches raw)
@@ -513,7 +515,8 @@ const SEED_DATA: DatabaseSchema = {
       details: 'পাংশা ব্লাড ডোনার্স এসোসিয়েশন ডাটাবেজ সিস্টেম চালু করা হয়েছে।',
       timestamp: '2026-07-25T10:00:00.000Z'
     }
-  ]
+  ],
+  notifications: []
 };
 
 // Database state in memory, synced to disk
@@ -524,6 +527,7 @@ function loadDatabase(): DatabaseSchema {
     if (fs.existsSync(DATA_FILE_PATH)) {
       const dataStr = fs.readFileSync(DATA_FILE_PATH, 'utf-8');
       const loaded = JSON.parse(dataStr);
+      loaded.notifications = loaded.notifications || [];
       return loaded;
     }
   } catch (err) {
@@ -860,32 +864,68 @@ export const dbService = {
   },
 
   // Blood Requests CRUD
-  getBloodRequests(): BloodRequest[] {
-    return [...db.bloodRequests].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  getBloodRequests(includeDeleted = false): BloodRequest[] {
+    let list = db.bloodRequests;
+    if (!includeDeleted) {
+      list = list.filter(r => !r.isDeleted);
+    }
+    return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  getBloodRequestById(idOrNum: string): BloodRequest | undefined {
+    return db.bloodRequests.find(r => (r.id === idOrNum || r.requestNumber === idOrNum) && !r.isDeleted);
   },
 
   addBloodRequest(reqData: Omit<BloodRequest, 'id' | 'createdAt' | 'status'>, actorName?: string): BloodRequest {
     const newId = `req-${Date.now().toString().slice(-6)}`;
+    const currentYear = new Date().getFullYear();
+    const count = db.bloodRequests.length + 1;
+    const generatedReqNum = `REQ-${currentYear}-${count.toString().padStart(4, '0')}`;
+    const now = new Date().toISOString();
+
     const newRequest: BloodRequest = {
       ...reqData,
       id: newId,
+      requestNumber: reqData.requestNumber || generatedReqNum,
       status: 'PENDING',
-      createdAt: new Date().toISOString(),
+      division: reqData.division || 'Dhaka',
+      district: reqData.district || 'Rajbari',
+      upazila: reqData.upazila || 'Pangsha',
+      createdAt: now,
     };
 
     db.bloodRequests.unshift(newRequest);
+
+    // Create in-app notification for volunteers/admins
+    const newNotif: Notification = {
+      id: `notif-${Date.now().toString().slice(-6)}`,
+      type: 'BLOOD_REQUEST',
+      title: `জরুরী রক্তের আবেদন (${newRequest.bloodGroup})`,
+      message: `${newRequest.patientName} এর জন্য ${newRequest.bagsNeeded} ব্যাগ ${newRequest.bloodGroup} রক্তের আবেদন করা হয়েছে (${newRequest.hospitalName}, ${newRequest.upazila})।`,
+      recipientRole: 'VOLUNTEER',
+      isRead: false,
+      createdAt: now,
+      linkUrl: `/request-blood?req=${newRequest.requestNumber}`
+    };
+    db.notifications.unshift(newNotif);
+
     saveDatabase();
 
-    this.addAuditLog(actorName || 'PUBLIC_USER', 'VOLUNTEER', 'ADD_BLOOD_REQUEST', `নতুন রক্তের আবেদন জমা পড়েছে: ${newRequest.patientName} (${newRequest.bloodGroup})`);
+    this.addAuditLog(
+      actorName || 'PUBLIC_VISITOR',
+      'VOLUNTEER',
+      'ADD_BLOOD_REQUEST',
+      `নতুন রক্তের আবেদন জমা পড়েছে (নম্বর: ${newRequest.requestNumber}): ${newRequest.patientName} (${newRequest.bloodGroup})`
+    );
     return newRequest;
   },
 
   updateBloodRequest(id: string, updateData: Partial<BloodRequest>, actorName?: string): BloodRequest | undefined {
-    const index = db.bloodRequests.findIndex(r => r.id === id);
+    const index = db.bloodRequests.findIndex(r => r.id === id || r.requestNumber === id);
     if (index === -1) return undefined;
 
     const updated = { ...db.bloodRequests[index], ...updateData };
-    if (updateData.status === 'FULFILLED' && !updated.fulfilledDate) {
+    if ((updateData.status === 'FULFILLED' || updateData.status === 'COMPLETED') && !updated.fulfilledDate) {
       updated.fulfilledDate = new Date().toISOString();
     }
 
@@ -893,10 +933,24 @@ export const dbService = {
     saveDatabase();
 
     if (actorName) {
-      this.addAuditLog(actorName, 'ADMIN', 'UPDATE_BLOOD_REQUEST', `রক্তের আবেদন স্ট্যাটাস পরিবর্তন: ${updated.patientName} (${updated.status})`);
+      this.addAuditLog(actorName, 'ADMIN', 'UPDATE_BLOOD_REQUEST', `রক্তের আবেদন আপডেট (নম্বর: ${updated.requestNumber || id}): স্ট্যাটাস ${updated.status}`);
     }
 
     return updated;
+  },
+
+  deleteBloodRequest(id: string, actorName?: string): boolean {
+    const index = db.bloodRequests.findIndex(r => r.id === id || r.requestNumber === id);
+    if (index === -1) return false;
+
+    db.bloodRequests[index].isDeleted = true;
+    db.bloodRequests[index].deletedAt = new Date().toISOString();
+    saveDatabase();
+
+    if (actorName) {
+      this.addAuditLog(actorName, 'ADMIN', 'SOFT_DELETE_BLOOD_REQUEST', `রক্তের আবেদন ট্র্যাশে স্থানান্তরিত হয়েছে: ${db.bloodRequests[index].requestNumber || id}`);
+    }
+    return true;
   },
 
   // Campaigns

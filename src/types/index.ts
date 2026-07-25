@@ -4,7 +4,7 @@ export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'VOLUNTEER';
 
 export type RequestPriority = 'NORMAL' | 'URGENT' | 'CRITICAL';
 
-export type RequestStatus = 'PENDING' | 'APPROVED' | 'FULFILLED' | 'CANCELLED';
+export type RequestStatus = 'PENDING' | 'SEARCHING' | 'MATCHED' | 'FULFILLED' | 'COMPLETED' | 'CANCELLED' | 'APPROVED';
 
 export type AvailabilityStatus = 'AVAILABLE' | 'UNAVAILABLE' | 'TEMP_UNAVAILABLE' | 'RESTRICTED';
 
@@ -79,23 +79,32 @@ export interface Donor {
 
 export interface BloodRequest {
   id: string;
+  requestNumber?: string;
   patientName: string;
   bloodGroup: BloodGroup;
   bagsNeeded: number;
   hospitalName: string;
-  upazila: string;
-  union?: string;
   requiredDate: string;
   requiredTime?: string;
   contactPerson: string;
   contactPhone: string;
   alternativePhone?: string;
+  whatsAppNumber?: string;
+  division?: string;
+  district?: string;
+  upazila: string;
+  union?: string;
+  exactAddress?: string;
+  doctorName?: string;
   priority: RequestPriority;
   status: RequestStatus;
-  diseaseOrReason: string;
+  diseaseOrReason?: string;
   medicalDocsUrl?: string;
   assignedDonors?: string[];
   fulfilledDate?: string;
+  adminNotes?: string;
+  isDeleted?: boolean;
+  deletedAt?: string;
   createdAt: string;
   notes?: string;
 }

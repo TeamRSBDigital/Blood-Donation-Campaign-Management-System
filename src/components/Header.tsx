@@ -55,6 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'home', label: t.home, icon: Heart },
     { id: 'search', label: t.searchDonors, icon: Search },
     { id: 'requests', label: t.bloodRequests, icon: Droplet },
+    { id: 'request-blood', label: 'রক্তের আবেদন', icon: AlertTriangle },
     { id: 'campaigns', label: t.campaigns, icon: Calendar },
     { id: 'register', label: t.becomeDonor, icon: UserCheck },
     { id: 'emergency', label: t.emergencyContacts, icon: AlertTriangle },

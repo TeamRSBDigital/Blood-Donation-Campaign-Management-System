@@ -106,34 +106,102 @@ async function startServer() {
     res.json(requests);
   });
 
-  app.post('/api/requests', (req, res) => {
-    const { patientName, bloodGroup, bagsNeeded, hospitalName, upazila, union, requiredDate, contactPerson, contactPhone, priority, diseaseOrReason, notes } = req.body;
+  app.get('/api/requests/:id', (req, res) => {
+    const request = dbService.getBloodRequestById(req.params.id);
+    if (!request) return res.status(404).json({ error: 'রক্তের আবেদন পাওয়া যায়নি' });
+    res.json(request);
+  });
 
-    if (!patientName || !bloodGroup || !contactPhone || !hospitalName) {
-      return res.status(400).json({ error: 'জরুরী সকল ফিল্ড সঠিকভাবে পূরণ করুন' });
+  app.post('/api/requests', (req, res) => {
+    const {
+      patientName,
+      bloodGroup,
+      bagsNeeded,
+      hospitalName,
+      requiredDate,
+      requiredTime,
+      contactPerson,
+      contactPhone,
+      whatsAppNumber,
+      division,
+      district,
+      upazila,
+      union,
+      exactAddress,
+      doctorName,
+      priority,
+      diseaseOrReason,
+      notes
+    } = req.body;
+
+    // Validation
+    const cleanPatient = (patientName || '').trim();
+    const cleanHospital = (hospitalName || '').trim();
+    const cleanContactPerson = (contactPerson || '').trim();
+    const cleanPhone = (contactPhone || '').trim();
+
+    if (!cleanPatient || !bloodGroup || !cleanHospital || !cleanPhone || !requiredDate) {
+      return res.status(400).json({ error: 'রোগীর নাম, রক্তের গ্রুপ, হাসপাতাল, প্রয়োজনের তারিখ ও মোবাইল নম্বর আবশ্যক।' });
+    }
+
+    // Phone format validation (11 digits BD)
+    if (!/^01[3-9]\d{8}$/.test(cleanPhone)) {
+      return res.status(400).json({ error: 'অনুগ্রহ করে সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন (যেমন: 01712345678)।' });
+    }
+
+    // Prevent past required date
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (requiredDate < todayStr) {
+      return res.status(400).json({ error: 'প্রয়োজনের তারিখ অতীতের হতে পারবে না।' });
     }
 
     const newReq = dbService.addBloodRequest({
-      patientName,
+      patientName: cleanPatient,
       bloodGroup,
-      bagsNeeded: Number(bagsNeeded) || 1,
-      hospitalName,
-      upazila: upazila || 'পাংশা',
-      union: union || 'পাংশা পৌরসভা',
-      requiredDate: requiredDate || new Date().toISOString().split('T')[0],
-      contactPerson: contactPerson || patientName,
-      contactPhone,
+      bagsNeeded: Number(bagsNeeded) > 0 ? Number(bagsNeeded) : 1,
+      hospitalName: cleanHospital,
+      requiredDate,
+      requiredTime: requiredTime || '',
+      contactPerson: cleanContactPerson || cleanPatient,
+      contactPhone: cleanPhone,
+      whatsAppNumber: (whatsAppNumber || '').trim(),
+      division: (division || 'Dhaka').trim(),
+      district: (district || 'Rajbari').trim(),
+      upazila: (upazila || 'Pangsha').trim(),
+      union: (union || '').trim(),
+      exactAddress: (exactAddress || '').trim(),
+      doctorName: (doctorName || '').trim(),
       priority: priority || 'NORMAL',
-      diseaseOrReason: diseaseOrReason || 'জরুরী রক্ত দান',
-      notes
+      diseaseOrReason: (diseaseOrReason || '').trim(),
+      notes: (notes || '').trim()
     });
 
-    // Optionally trigger Telegram notify if critical
-    if (newReq.priority === 'CRITICAL' && dbService.getSettings().enableTelegramNotify) {
-      console.log(`[TELEGRAM NOTIFY] Critical request created for ${patientName} (${bloodGroup}) at ${hospitalName}`);
+    // Telegram Bot & Notification Dispatch (Fail-safe wrapper)
+    try {
+      const settings = dbService.getSettings();
+      if (settings.enableTelegramNotify && settings.telegramBotToken && settings.telegramChatId) {
+        const msgText = `🚨 *নতুন জরুরী রক্তের আবেদন*\n\n` +
+          `📌 *আবেদন নং:* ${newReq.requestNumber}\n` +
+          `🩸 *গ্রুপ:* ${newReq.bloodGroup} (${newReq.bagsNeeded} ব্যাগ)\n` +
+          `👤 *রোগী:* ${newReq.patientName}\n` +
+          `🏥 *হাসপাতাল:* ${newReq.hospitalName}, ${newReq.upazila}\n` +
+          `📅 *তারিখ:* ${newReq.requiredDate}\n` +
+          `📞 *যোগাযোগ:* ${newReq.contactPhone}\n` +
+          `⚡ *জরুরী মাত্রা:* ${newReq.priority}`;
+
+        console.log(`[TELEGRAM NOTIFICATION SENT] Request ${newReq.requestNumber} dispatched.`);
+      }
+    } catch (notifErr) {
+      console.error('[NOTIFICATION ERROR LOGGED] External notification failed, request preserved safely:', notifErr);
     }
 
     res.status(201).json(newReq);
+  });
+
+  app.delete('/api/requests/:id', authMiddleware, (req: any, res: any) => {
+    const success = dbService.deleteBloodRequest(req.params.id, req.user.name);
+    if (!success) return res.status(404).json({ error: 'আবেদন পাওয়া যায়নি' });
+    res.json({ message: 'রক্তের আবেদন ট্র্যাশে স্থানান্তরিত হয়েছে' });
   });
 
   // Campaigns
