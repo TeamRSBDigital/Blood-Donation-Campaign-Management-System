@@ -1,0 +1,6 @@
+{
+  "name": "পাংশা ব্লাড ডোনার্স এসোসিয়েশন - Blood Donation Management",
+  "description": "Blood Donation Campaign Management System for Pangsha Upazila, Rajbari, Bangladesh",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
