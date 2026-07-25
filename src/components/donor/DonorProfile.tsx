@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Donor, DonationHistory } from '../../types/index.js';
 import { donorService } from '../../services/donorService.js';
 import { RecordDonationModal } from '../admin/donor/RecordDonationModal.js';
+import { DonationHistoryTable } from '../admin/donor/DonationHistoryTable.js';
 import {
   User,
   Phone,
@@ -630,88 +631,19 @@ export const DonorProfile: React.FC<DonorProfileProps> = ({
           </div>
         )}
 
-        {/* 5. Blood Donation History Timeline */}
-        <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-            <h3 className="font-extrabold text-slate-900 dark:text-white flex items-center gap-2 text-sm">
-              <Award className="w-4.5 h-4.5 text-red-600" />
-              <span>রক্তদানের পূর্ণাঙ্গ ইতিহাস ({history.length} টি রেকর্ড)</span>
-            </h3>
-
-            {showAdminActions && (
-              <button
-                onClick={() => setIsRecordModalOpen(true)}
-                className="px-3 py-1.5 rounded-xl bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300 hover:bg-red-200 font-bold text-xs flex items-center gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>রেকর্ড যুক্ত করুন</span>
-              </button>
-            )}
-          </div>
-
-          {loadingHistory ? (
-            <div className="p-8 text-center text-slate-400 font-bold flex items-center justify-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-red-600" />
-              <span>ইতিহাস লোড করা হচ্ছে...</span>
-            </div>
-          ) : history.length === 0 ? (
-            <div className="p-8 bg-slate-50 dark:bg-slate-800/40 rounded-3xl text-center text-slate-400 border border-slate-200 dark:border-slate-800 space-y-2">
-              <Heart className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto" />
-              <p className="font-bold text-slate-600 dark:text-slate-300">পূর্বে কোনো রক্তদানের রেকর্ড পাওয়া যায়নি</p>
-              <p className="text-[11px]">নতুন রক্তদানের তথ্য সংযোজন করতে উপরের বোতামে ক্লিক করুন।</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {history.map((record) => (
-                <div
-                  key={record.id}
-                  className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:border-red-200 dark:hover:border-red-900/60 transition-colors"
-                >
-                  <div className="space-y-1">
-                    <div className="font-extrabold text-slate-900 dark:text-white flex items-center gap-2 text-xs">
-                      <Building className="w-4 h-4 text-red-600 shrink-0" />
-                      <span>{record.hospitalName}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 font-black text-[10px]">
-                        {record.bagsCount} ব্যাগ
-                      </span>
-                    </div>
-
-                    {record.patientName && (
-                      <p className="text-slate-600 dark:text-slate-300 text-[11px] font-semibold pl-6">
-                        রোগীর নাম: {record.patientName}
-                      </p>
-                    )}
-
-                    {record.location && (
-                      <p className="text-slate-400 text-[10px] pl-6 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-slate-400" />
-                        <span>স্থান: {record.location}</span>
-                      </p>
-                    )}
-
-                    {record.notes && (
-                      <p className="text-slate-500 dark:text-slate-400 text-[11px] italic pl-6 bg-white dark:bg-slate-900 p-2 rounded-xl mt-1 border border-slate-200 dark:border-slate-800">
-                        "{record.notes}"
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="text-left sm:text-right shrink-0 font-medium">
-                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-extrabold text-slate-800 dark:text-slate-200 rounded-xl text-xs shadow-2xs">
-                      <Calendar className="w-3.5 h-3.5 text-red-600" />
-                      <span>{record.date}</span>
-                    </span>
-
-                    {record.verifiedBy && (
-                      <span className="block text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">
-                        ✓ যাচাই করেছেন: {record.verifiedBy}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* 5. Blood Donation History Table & Timeline */}
+        <div className="pt-2">
+          <DonationHistoryTable
+            donor={donor}
+            history={history}
+            onHistoryChange={fetchHistory}
+            onDonorUpdate={updated => {
+              setDonor(updated);
+              if (onUpdateDonor) onUpdateDonor(updated);
+            }}
+            showAddButton={showAdminActions}
+            allowDelete={showAdminActions}
+          />
         </div>
 
         {/* Audit Meta Footer */}
