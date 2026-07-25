@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '../../context/AuthContext.js';
 import { Donor, BloodGroup, AvailabilityStatus } from '../../types/index.js';
 import { donorService, DonorFilterParams } from '../../services/donorService.js';
 import { DonorProfileModal } from './donor/DonorProfileModal.js';
@@ -39,6 +40,7 @@ const UPAZILAS = ['ALL', 'পাংশা', 'কালুখালী', 'বা�
 const RARE_GROUPS = ['A-', 'B-', 'AB-', 'O-'];
 
 export const DonorManagement: React.FC = () => {
+  const { user } = useAuth();
   const [donors, setDonors] = useState<Donor[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -416,23 +418,27 @@ export const DonorManagement: React.FC = () => {
               </button>
             )}
 
-            <button
-              onClick={exportToCSV}
-              className="px-3.5 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 font-bold text-xs flex items-center gap-1.5 border border-emerald-200 dark:border-emerald-800 transition-colors"
-              title="CSV ফাইল এক্সপোর্ট"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span>CSV এক্সপোর্ট</span>
-            </button>
+            {user?.role === 'SUPER_ADMIN' && (
+              <>
+                <button
+                  onClick={exportToCSV}
+                  className="px-3.5 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 font-bold text-xs flex items-center gap-1.5 border border-emerald-200 dark:border-emerald-800 transition-colors"
+                  title="CSV ফাইল এক্সপোর্ট"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>CSV এক্সপোর্ট</span>
+                </button>
 
-            <button
-              onClick={exportToJSON}
-              className="px-3.5 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 font-bold text-xs flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 transition-colors"
-              title="JSON ব্যাকআপ ফাইল"
-            >
-              <FileCode className="w-3.5 h-3.5 text-slate-500" />
-              <span>JSON ব্যাকআপ</span>
-            </button>
+                <button
+                  onClick={exportToJSON}
+                  className="px-3.5 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 font-bold text-xs flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 transition-colors"
+                  title="JSON ব্যাকআপ ফাইল"
+                >
+                  <FileCode className="w-3.5 h-3.5 text-slate-500" />
+                  <span>JSON ব্যাকআপ</span>
+                </button>
+              </>
+            )}
 
             <button
               onClick={() => setRefreshKey(k => k + 1)}

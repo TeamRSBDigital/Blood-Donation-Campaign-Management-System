@@ -11,6 +11,7 @@ import { TelegramNotificationSettings } from './TelegramNotificationSettings.js'
 import { UserManagement } from './UserManagement.js';
 import { AuditLogViewer } from './AuditLogViewer.js';
 import { SystemSettings } from './SystemSettings.js';
+import { DataExportCenter } from './DataExportCenter.js';
 import { ForbiddenPage } from './ForbiddenPage.js';
 import { UserProfileModal } from './UserProfileModal.js';
 import { ChangePasswordModal } from './ChangePasswordModal.js';
@@ -24,6 +25,7 @@ import {
   Shield,
   ShieldAlert,
   Settings,
+  Download,
   LogOut,
   ArrowLeft,
   HeartHandshake,
@@ -106,6 +108,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       id: 'audit',
       label: 'অডিট লোগ',
       icon: ShieldAlert,
+      requiredRoles: ['SUPER_ADMIN'],
+    },
+    {
+      id: 'export',
+      label: 'ডাটা এক্সপোর্ট সেন্টার',
+      icon: Download,
       requiredRoles: ['SUPER_ADMIN'],
     },
     {
@@ -439,6 +447,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
               {activeTab === 'telegram' && <TelegramNotificationSettings />}
               {activeTab === 'users' && <UserManagement />}
               {activeTab === 'audit' && <AuditLogViewer />}
+              {activeTab === 'export' && <DataExportCenter />}
               {activeTab === 'settings' && <SystemSettings />}
             </>
           )}

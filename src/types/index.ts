@@ -207,3 +207,56 @@ export interface ReportSummary {
   fulfillmentRatePercentage: number;
   topUnionsByDonors: Array<{ union: string; count: number }>;
 }
+
+export interface FullAnalyticsData {
+  overview: {
+    totalDonors: number;
+    availableDonors: number;
+    unavailableDonors: number;
+    totalRequests: number;
+    completedRequests: number;
+    pendingRequests: number;
+    cancelledRequests: number;
+    totalVolunteers: number;
+  };
+  bloodGroupReport: Array<{
+    bloodGroup: BloodGroup;
+    totalDonors: number;
+    available: number;
+    unavailable: number;
+    percentage: number;
+  }>;
+  locationReport: Array<{
+    division: string;
+    district: string;
+    upazila: string;
+    union: string;
+    donorCount: number;
+    availableCount: number;
+  }>;
+  donationReport: {
+    todayDonations: number;
+    weekDonations: number;
+    monthDonations: number;
+    yearDonations: number;
+  };
+  requestReport: Array<{
+    status: string;
+    label: string;
+    count: number;
+    percentage: number;
+  }>;
+  recentActivity: {
+    latestDonors: Donor[];
+    latestRequests: BloodRequest[];
+    latestDonations: DonationHistory[];
+    latestAuditLogs: AuditLog[];
+  };
+  charts: {
+    bloodGroupDistribution: Array<{ group: string; total: number; available: number; unavailable: number }>;
+    donationTrend: Array<{ period: string; count: number }>;
+    requestTrend: Array<{ period: string; count: number }>;
+    monthlyRegistrationTrend: Array<{ month: string; count: number }>;
+    locationDistribution: Array<{ name: string; count: number; available: number }>;
+  };
+}

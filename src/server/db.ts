@@ -863,6 +863,10 @@ export const dbService = {
     return db.donationHistories.filter(h => h.donorId === donorId).sort((a, b) => b.date.localeCompare(a.date));
   },
 
+  getAllDonationHistories(): DonationHistory[] {
+    return [...db.donationHistories].sort((a, b) => b.date.localeCompare(a.date));
+  },
+
   // Blood Requests CRUD
   getBloodRequests(includeDeleted = false): BloodRequest[] {
     let list = db.bloodRequests;
