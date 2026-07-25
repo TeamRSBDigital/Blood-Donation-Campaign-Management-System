@@ -5,7 +5,7 @@ import { ThemeProvider } from './context/ThemeContext.js';
 
 import { Header } from './components/Header.js';
 import { Footer } from './components/Footer.js';
-import { Hero } from './components/Hero.js';
+import { HomePage } from './components/home/HomePage.js';
 import { DonorSearch } from './components/DonorSearch.js';
 import { PublicRequestBoard } from './components/PublicRequestBoard.js';
 import { PublicBloodRequestForm } from './components/PublicBloodRequestForm.tsx';
@@ -31,7 +31,7 @@ const AppContent: React.FC = () => {
   // Handle hero or request matcher clicking a blood group
   const handleSelectBloodGroup = (group: BloodGroup) => {
     setHeroSelectedGroup(group);
-    setActiveTab('home');
+    setActiveTab('search');
   };
 
   // If in admin view mode and authenticated
@@ -56,18 +56,22 @@ const AppContent: React.FC = () => {
           }
         }}
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
+        onOpenPublicRequestModal={() => setIsRequestModalOpen(true)}
       />
 
       {/* Main View Content */}
       <main className="flex-1">
         {activeTab === 'home' && (
-          <>
-            <Hero
-              onSelectBloodGroup={handleSelectBloodGroup}
-              onPostRequestClick={() => setIsRequestModalOpen(true)}
-            />
-            <DonorSearch initialBloodGroup={heroSelectedGroup} />
-          </>
+          <HomePage
+            onSelectBloodGroup={handleSelectBloodGroup}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            onOpenRequestModal={() => setIsRequestModalOpen(true)}
+            onOpenDonorRegisterModal={() => setActiveTab('register')}
+          />
+        )}
+
+        {activeTab === 'search' && (
+          <DonorSearch initialBloodGroup={heroSelectedGroup} />
         )}
 
         {activeTab === 'requests' && (

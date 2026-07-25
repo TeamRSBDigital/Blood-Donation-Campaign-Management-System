@@ -8,7 +8,7 @@ export type RequestStatus = 'PENDING' | 'APPROVED' | 'FULFILLED' | 'CANCELLED';
 
 export type AvailabilityStatus = 'AVAILABLE' | 'RESTRICTED' | 'UNAVAILABLE';
 
-export interface AdminUser {
+export interface User {
   id: string;
   name: string;
   email: string;
@@ -19,6 +19,8 @@ export interface AdminUser {
   lastLogin?: string;
   active: boolean;
 }
+
+export interface AdminUser extends User {}
 
 export interface DonationHistory {
   id: string;
@@ -49,10 +51,10 @@ export interface Donor {
   upazila: string;
   union: string;
   village: string;
-  lastDonationDate?: string; // ISO format string YYYY-MM-DD
+  lastDonationDate?: string; // ISO YYYY-MM-DD
   totalDonations: number;
   isVerified: boolean;
-  isAvailableOverride?: boolean; // Admin can manually set off
+  isAvailableOverride?: boolean;
   hemoglobinLevel?: string;
   bpNotes?: string;
   medicalNotes?: string;
@@ -78,7 +80,7 @@ export interface BloodRequest {
   status: RequestStatus;
   diseaseOrReason: string;
   medicalDocsUrl?: string;
-  assignedDonors?: string[]; // donor IDs
+  assignedDonors?: string[];
   fulfilledDate?: string;
   createdAt: string;
   notes?: string;
@@ -100,6 +102,17 @@ export interface Campaign {
   organizer: string;
   status: 'UPCOMING' | 'ONGOING' | 'COMPLETED';
   createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  type: 'BLOOD_REQUEST' | 'CAMPAIGN' | 'DONOR_ALERT' | 'SYSTEM';
+  title: string;
+  message: string;
+  recipientRole?: UserRole;
+  isRead: boolean;
+  createdAt: string;
+  linkUrl?: string;
 }
 
 export interface GalleryImage {
@@ -142,7 +155,7 @@ export interface SystemSettings {
   email: string;
   addressBn: string;
   addressEn: string;
-  eligibilityIntervalDays: number; // default 90 days
+  eligibilityIntervalDays: number;
   telegramBotToken?: string;
   telegramChatId?: string;
   whatsappWebhookUrl?: string;
@@ -159,4 +172,15 @@ export interface DashboardStats {
   upcomingCampaigns: number;
   bloodGroupCounts: Record<BloodGroup, number>;
   unionCounts: Record<string, number>;
+}
+
+export interface ReportSummary {
+  period: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  startDate: string;
+  endDate: string;
+  totalDonationsCollected: number;
+  totalRequestsReceived: number;
+  totalRequestsFulfilled: number;
+  fulfillmentRatePercentage: number;
+  topUnionsByDonors: Array<{ union: string; count: number }>;
 }
