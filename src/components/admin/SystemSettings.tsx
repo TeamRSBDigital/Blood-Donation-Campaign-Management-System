@@ -697,16 +697,118 @@ export const SystemSettings: React.FC = () => {
 
         {/* 3. NOTIFICATION SETTINGS */}
         {activeSection === 'notification' && (
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-md space-y-5 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-md space-y-6 animate-in fade-in duration-150">
             <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
               <BellRing className="w-5 h-5 text-red-600" />
               <div>
                 <h2 className="text-base font-bold text-slate-900 dark:text-white">নোটিফিকেশন চ্যানেল ও অ্যালার্ট কনফিগারেশন</h2>
-                <p className="text-xs text-slate-500">ইন-অ্যাপ ড্যাশবোর্ড, টেলিগ্রাম ও হোয়াটসঅ্যাপ নোটিফিকেশন নিয়ন্ত্রণ</p>
+                <p className="text-xs text-slate-500">ইন-অ্যাপ ড্যাশবোর্ড, টেলিগ্রাম ও হোয়াটসঅ্যাপ নোটিফিকেশন প্রোভাইডার নিয়ন্ত্রণ করুন</p>
               </div>
             </div>
 
-            <div className="space-y-4">
+            {/* Notification Provider Section */}
+            <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    নোটিফিকেশন প্রোভাইডার নির্বাচন (Notification Providers)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    সিস্টেমের সক্রিয় নোটিফিকেশন চ্যানেল ও হোয়াটসঅ্যাপ প্রোভাইডার নির্বাচন করুন
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                {/* Telegram Provider Card */}
+                <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Bot className="w-4 h-4 text-blue-500" />
+                      Telegram Provider
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-extrabold">
+                      ACTIVE
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Official Telegram Bot API (টেলিগ্রাম গ্রুপ ও চ্যানেল নোটিফিকেশন)
+                  </p>
+                </div>
+
+                {/* WhatsApp Provider Card (Dual Provider Switch) */}
+                <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <MessageSquare className="w-4 h-4 text-emerald-500" />
+                      WhatsApp Provider Selection
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-extrabold uppercase">
+                      {formData.activeWhatsappProvider === 'QR_SESSION' ? 'QR Session' : 'Cloud API'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-200 cursor-pointer p-2 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-emerald-50/50">
+                      <input
+                        type="radio"
+                        name="activeWaProvider"
+                        value="CLOUD_API"
+                        checked={formData.activeWhatsappProvider !== 'QR_SESSION'}
+                        onChange={() => handleChange('activeWhatsappProvider', 'CLOUD_API')}
+                        className="text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="font-semibold">Provider 1: Official WhatsApp Cloud API (Meta)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-200 cursor-pointer p-2 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-emerald-50/50">
+                      <input
+                        type="radio"
+                        name="activeWaProvider"
+                        value="QR_SESSION"
+                        checked={formData.activeWhatsappProvider === 'QR_SESSION'}
+                        onChange={() => handleChange('activeWhatsappProvider', 'QR_SESSION')}
+                        className="text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="font-semibold">Provider 2: WhatsApp QR Code Session (Web)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Email Provider (Future) */}
+                <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 opacity-60">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Email Provider (Future)
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 dark:bg-slate-800 text-[10px] font-bold">
+                      DISABLED
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    SMTP / SendGrid ইমেইল ইন্টিগ্রেশন (ভবিষ্যত আপডেট)
+                  </p>
+                </div>
+
+                {/* SMS Provider (Future) */}
+                <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 opacity-60">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      SMS Provider (Future)
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 dark:bg-slate-800 text-[10px] font-bold">
+                      DISABLED
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Bulk SMS Gateway integration (ভবিষ্যত আপডেট)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
                 <div>
                   <div className="text-xs font-bold text-slate-900 dark:text-white">ইন-অ্যাপ ড্যাশবোর্ড নোটিফিকেশন (Enable Dashboard Notifications)</div>
@@ -735,8 +837,8 @@ export const SystemSettings: React.FC = () => {
 
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
                 <div>
-                  <div className="text-xs font-bold text-slate-900 dark:text-white">হোয়াটসঅ্যাপ ক্লাউড এপিআই নোটিফিকেশন (Enable WhatsApp Notifications)</div>
-                  <div className="text-[11px] text-slate-500">নিবন্ধিত এডমিন ও ভলান্টিয়ারদের ফোনে সরাসরি হোয়াটসঅ্যাপ মেসেজ পাঠাবে</div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">হোয়াটসঅ্যাপ নোটিফিকেশন (Enable WhatsApp Notifications)</div>
+                  <div className="text-[11px] text-slate-500">নিবন্ধিত এডমিন ও ভলান্টিয়ারদের ফোনে সরাসরি হোয়াটসঅ্যাপ বার্তা পাঠাবে</div>
                 </div>
                 <input
                   type="checkbox"

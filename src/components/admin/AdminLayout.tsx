@@ -12,6 +12,7 @@ import { WhatsappNotificationSettings } from './WhatsappNotificationSettings.js'
 import { UserManagement } from './UserManagement.js';
 import { AuditLogViewer } from './AuditLogViewer.js';
 import { SystemSettings } from './SystemSettings.js';
+import { WhatsAppQrManager } from './WhatsAppQrManager.js';
 import { DataExportCenter } from './DataExportCenter.js';
 import { ForbiddenPage } from './ForbiddenPage.js';
 import { UserProfileModal } from './UserProfileModal.js';
@@ -24,6 +25,7 @@ import {
   BarChart3,
   Bot,
   MessageSquare,
+  QrCode,
   Shield,
   ShieldAlert,
   Settings,
@@ -105,6 +107,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       id: 'whatsapp',
       label: 'হোয়াটসঅ্যাপ ক্লাউড এপিআই',
       icon: MessageSquare,
+      requiredRoles: ['SUPER_ADMIN'],
+    },
+    {
+      id: 'whatsapp-qr',
+      label: 'হোয়াটসঅ্যাপ QR সেশন',
+      icon: QrCode,
       requiredRoles: ['SUPER_ADMIN'],
     },
     {
@@ -502,6 +510,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
               {activeTab === 'reports' && <ReportsAnalytics />}
               {activeTab === 'telegram' && <TelegramNotificationSettings />}
               {activeTab === 'whatsapp' && <WhatsappNotificationSettings />}
+              {activeTab === 'whatsapp-qr' && <WhatsAppQrManager />}
               {activeTab === 'users' && <UserManagement />}
               {activeTab === 'audit' && <AuditLogViewer />}
               {activeTab === 'export' && <DataExportCenter />}

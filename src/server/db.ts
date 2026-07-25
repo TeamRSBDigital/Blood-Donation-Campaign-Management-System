@@ -17,7 +17,8 @@ import {
   TelegramDeliveryStats,
   WhatsappNotificationLog,
   WhatsappRecipient,
-  WhatsappDeliveryStats
+  WhatsappDeliveryStats,
+  WhatsappQrSessionState
 } from '../types/index.js';
 
 const DATA_FILE_PATH = path.join(process.cwd(), 'pbda_data.json');
@@ -36,6 +37,7 @@ interface DatabaseSchema {
   telegramLogs: TelegramNotificationLog[];
   whatsappLogs: WhatsappNotificationLog[];
   whatsappRecipients: WhatsappRecipient[];
+  whatsappQrSession?: WhatsappQrSessionState;
 }
 
 // Initial Admin Passwords (Hashed during seed initialization if string matches raw)
@@ -84,6 +86,11 @@ const SEED_DATA: DatabaseSchema = {
     bloodRequestExpirationHours: 48,
     eligibilityIntervalDays: 90,
 
+    activeWhatsappProvider: 'CLOUD_API',
+    activeTelegramProvider: 'BOT',
+    activeEmailProvider: 'DISABLED',
+    activeSmsProvider: 'DISABLED',
+
     enableDashboardNotify: true,
     enableTelegramNotify: true,
     enableWhatsappNotify: process.env.WHATSAPP_NOTIFICATIONS_ENABLED !== undefined ? process.env.WHATSAPP_NOTIFICATIONS_ENABLED === 'true' : true,
@@ -115,6 +122,17 @@ const SEED_DATA: DatabaseSchema = {
     enablePublicRequestPosting: true,
     helplinePhone: '+8801812999888',
     emergencyAnnouncement: ''
+  },
+  whatsappQrSession: {
+    status: 'DISCONNECTED',
+    connectedPhone: '',
+    connectedAccountName: '',
+    deviceInfo: 'WhatsApp Web (Chrome / Linux x86_64)',
+    batteryLevel: 98,
+    connectedAt: '',
+    lastActiveAt: '',
+    sessionKey: '',
+    qrExpiresAt: ''
   },
   whatsappLogs: [],
   whatsappRecipients: [
@@ -1405,5 +1423,34 @@ export const dbService = {
       isEnabled,
       activeRecipientsCount
     };
+  },
+
+  getWhatsappQrSession(): WhatsappQrSessionState {
+    if (!db.whatsappQrSession) {
+      db.whatsappQrSession = {
+        status: 'DISCONNECTED',
+        connectedPhone: '',
+        connectedAccountName: '',
+        deviceInfo: 'WhatsApp Web (Chrome / Linux x86_64)',
+        batteryLevel: 98,
+        connectedAt: '',
+        lastActiveAt: '',
+        sessionKey: '',
+        qrExpiresAt: ''
+      };
+    }
+    return db.whatsappQrSession;
+  },
+
+  updateWhatsappQrSession(updateData: Partial<WhatsappQrSessionState>): WhatsappQrSessionState {
+    const current = this.getWhatsappQrSession();
+    db.whatsappQrSession = {
+      ...current,
+      ...updateData,
+      lastActiveAt: new Date().toISOString()
+    };
+    saveDatabase();
+    return db.whatsappQrSession;
   }
 };
+

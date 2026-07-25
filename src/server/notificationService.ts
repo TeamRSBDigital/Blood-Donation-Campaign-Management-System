@@ -1,4 +1,5 @@
 import { dbService } from './db.js';
+import { whatsappQrService } from './whatsappQrService.js';
 import {
   TelegramNotificationType,
   TelegramInlineButton,
@@ -193,18 +194,64 @@ async function processWhatsAppQueue() {
     }
 
     const settings = dbService.getSettings();
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || settings.whatsappAccessToken || '';
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || settings.whatsappPhoneNumberId || '';
-    const apiVersion = process.env.WHATSAPP_API_VERSION || settings.whatsappApiVersion || 'v20.0';
+    const activeProvider = settings.activeWhatsappProvider || 'CLOUD_API';
     const isEnabled = process.env.WHATSAPP_NOTIFICATIONS_ENABLED !== undefined
       ? process.env.WHATSAPP_NOTIFICATIONS_ENABLED === 'true'
       : (settings.enableWhatsappNotify ?? true);
 
-    if (!isEnabled || !accessToken || !phoneNumberId) {
+    if (!isEnabled) {
       for (const log of pendingLogs) {
         dbService.updateWhatsappLog(log.id, {
           status: 'FAILED',
-          failureReason: !isEnabled ? 'WhatsApp notifications are disabled in settings' : 'WhatsApp Access Token or Phone Number ID not configured'
+          failureReason: 'WhatsApp notifications are disabled in settings'
+        });
+      }
+      isProcessingWhatsAppQueue = false;
+      return;
+    }
+
+    if (activeProvider === 'QR_SESSION') {
+      const qrState = whatsappQrService.getSessionState();
+      if (qrState.status !== 'CONNECTED') {
+        for (const log of pendingLogs) {
+          dbService.updateWhatsappLog(log.id, {
+            status: 'FAILED',
+            failureReason: 'WhatsApp QR Session is not connected or session expired'
+          });
+        }
+        isProcessingWhatsAppQueue = false;
+        return;
+      }
+
+      for (const log of pendingLogs) {
+        const result = await whatsappQrService.sendMessage(log.recipientPhone, log.message);
+        if (result.success) {
+          dbService.updateWhatsappLog(log.id, {
+            status: 'SUCCESS',
+            deliveredAt: new Date().toISOString(),
+            waMessageId: result.waMessageId
+          });
+        } else {
+          dbService.updateWhatsappLog(log.id, {
+            status: 'FAILED',
+            failureReason: result.error
+          });
+        }
+      }
+      isProcessingWhatsAppQueue = false;
+      return;
+    }
+
+    // CLOUD_API Fallback
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || settings.whatsappAccessToken || '';
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || settings.whatsappPhoneNumberId || '';
+    const apiVersion = process.env.WHATSAPP_API_VERSION || settings.whatsappApiVersion || 'v20.0';
+
+    if (!accessToken || !phoneNumberId) {
+      for (const log of pendingLogs) {
+        dbService.updateWhatsappLog(log.id, {
+          status: 'FAILED',
+          failureReason: 'WhatsApp Access Token or Phone Number ID not configured'
         });
       }
       isProcessingWhatsAppQueue = false;

@@ -243,6 +243,12 @@ export interface SystemSettings {
   bloodRequestExpirationHours?: number;
   eligibilityIntervalDays: number;
 
+  // Notification Provider Settings
+  activeWhatsappProvider?: 'CLOUD_API' | 'QR_SESSION';
+  activeTelegramProvider?: 'BOT';
+  activeEmailProvider?: 'DISABLED' | 'SMTP';
+  activeSmsProvider?: 'DISABLED' | 'SMS_GATEWAY';
+
   // Notification Settings
   enableDashboardNotify?: boolean;
   enableTelegramNotify: boolean;
@@ -404,3 +410,21 @@ export interface WhatsappDeliveryStats {
   isEnabled: boolean;
   activeRecipientsCount: number;
 }
+
+export type WhatsappProviderType = 'CLOUD_API' | 'QR_SESSION';
+
+export type WhatsappQrStatus = 'DISCONNECTED' | 'PAIRING_QR' | 'CONNECTED' | 'EXPIRED';
+
+export interface WhatsappQrSessionState {
+  status: WhatsappQrStatus;
+  qrCodeDataUrl?: string;
+  connectedPhone?: string;
+  connectedAccountName?: string;
+  deviceInfo?: string;
+  batteryLevel?: number;
+  connectedAt?: string;
+  lastActiveAt?: string;
+  sessionKey?: string;
+  qrExpiresAt?: string;
+}
+

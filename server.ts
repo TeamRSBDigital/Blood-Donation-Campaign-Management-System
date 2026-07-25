@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { createServer as createViteServer } from 'vite';
 import { dbService, calculateDonorStatus } from './src/server/db.js';
 import { notificationService } from './src/server/notificationService.js';
+import { whatsappQrService } from './src/server/whatsappQrService.js';
 import { Donor, BloodGroup } from './src/types/index.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'pbda_pangsha_blood_donors_secret_key_2026';
@@ -1073,6 +1074,129 @@ async function startServer() {
     } else {
       res.status(400).json({ error: result.error || 'পুনরায় চেষ্টা ব্যর্থ হয়েছে' });
     }
+  });
+
+  // ----------------------------------------------------
+  // WHATSAPP QR SESSION & NOTIFICATION PROVIDER ENDPOINTS
+  // ----------------------------------------------------
+  app.get('/api/whatsapp-qr/session', authMiddleware, superAdminOnly, (req, res) => {
+    const session = whatsappQrService.getSessionState();
+    const settings = dbService.getSettings();
+    res.json({
+      session,
+      activeWhatsappProvider: settings.activeWhatsappProvider || 'CLOUD_API',
+      activeTelegramProvider: settings.activeTelegramProvider || 'BOT',
+      activeEmailProvider: settings.activeEmailProvider || 'DISABLED',
+      activeSmsProvider: settings.activeSmsProvider || 'DISABLED'
+    });
+  });
+
+  app.post('/api/whatsapp-qr/generate', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const session = whatsappQrService.generateQrCode(req.user.name);
+    res.json({
+      success: true,
+      message: 'হোয়াটসঅ্যাপ কিউআর কোড জেনারেট করা হয়েছে!',
+      session
+    });
+  });
+
+  app.post('/api/whatsapp-qr/simulate-scan', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const { phone, accountName } = req.body;
+    const session = whatsappQrService.simulateScanAndConnect(
+      req.user.name,
+      phone || '+8801712000000',
+      accountName || 'পাংশা ব্লাড ডোনার্স হেল্পডেস্ক (PBDA Bot)'
+    );
+    res.json({
+      success: true,
+      message: 'কিউআর কোড স্ক্যান সফল হয়েছে এবং হোয়াটসঅ্যাপ সেশন কানেক্ট করা হয়েছে!',
+      session
+    });
+  });
+
+  app.post('/api/whatsapp-qr/reconnect', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const session = whatsappQrService.reconnectSession(req.user.name);
+    res.json({
+      success: true,
+      message: 'হোয়াটসঅ্যাপ সেশন রিকানেক্ট করা হয়েছে!',
+      session
+    });
+  });
+
+  app.post('/api/whatsapp-qr/disconnect', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const session = whatsappQrService.disconnectSession(req.user.name);
+    res.json({
+      success: true,
+      message: 'হোয়াটসঅ্যাপ সেশন সফলভাবে ডিসকানেক্ট করা হয়েছে!',
+      session
+    });
+  });
+
+  app.post('/api/whatsapp-qr/delete-session', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const session = whatsappQrService.deleteSession(req.user.name);
+    res.json({
+      success: true,
+      message: 'হোয়াটসঅ্যাপ কিউআর সেশন ডাটা সম্পূর্ণ মুছে ফেলা হয়েছে!',
+      session
+    });
+  });
+
+  app.post('/api/whatsapp-qr/test', authMiddleware, superAdminOnly, async (req: any, res: any) => {
+    const { recipientPhone, customMsg } = req.body;
+    if (!recipientPhone) {
+      return res.status(400).json({ error: 'টেস্ট বার্তা পাঠানোর জন্য প্রাপকের ফোন নম্বর প্রয়োজন।' });
+    }
+
+    const testText = customMsg || '🧪 [PBDA WhatsApp QR Session Test] পাংশা ব্লাড ডোনার্স হেল্পডেস্ক থেকে টেস্ট নোটিফিকেশন পাঠানো হয়েছে।';
+    const result = await whatsappQrService.sendMessage(recipientPhone, testText);
+
+    if (result.success) {
+      dbService.addAuditLog(
+        req.user.name,
+        'SUPER_ADMIN',
+        'WHATSAPP_TEST',
+        `হোয়াটসঅ্যাপ কিউআর সেশন দিয়ে টেস্ট মেসেজ পাঠানো হয়েছে (${recipientPhone})`
+      );
+      res.json({
+        success: true,
+        message: 'হোয়াটসঅ্যাপ কিউআর সেশন ব্যবহার করে টেস্ট বার্তা সফলভাবে পাঠানো হয়েছে!',
+        waMessageId: result.waMessageId
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'মেসেজ প্রেরণে সমস্যা হয়েছে'
+      });
+    }
+  });
+
+  app.put('/api/settings/notification-providers', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const { activeWhatsappProvider, activeTelegramProvider, activeEmailProvider, activeSmsProvider } = req.body;
+
+    const currentSettings = dbService.getSettings();
+    const prevWhatsappProvider = currentSettings.activeWhatsappProvider || 'CLOUD_API';
+
+    const updated = dbService.updateSettings({
+      activeWhatsappProvider: activeWhatsappProvider || prevWhatsappProvider,
+      activeTelegramProvider: activeTelegramProvider || currentSettings.activeTelegramProvider || 'BOT',
+      activeEmailProvider: activeEmailProvider || currentSettings.activeEmailProvider || 'DISABLED',
+      activeSmsProvider: activeSmsProvider || currentSettings.activeSmsProvider || 'DISABLED'
+    }, req.user.name);
+
+    if (activeWhatsappProvider && activeWhatsappProvider !== prevWhatsappProvider) {
+      dbService.addAuditLog(
+        req.user.name,
+        'SUPER_ADMIN',
+        'Provider Changed',
+        `হোয়াটসঅ্যাপ নোটিফিকেশন প্রোভাইডার পরিবর্তন করা হয়েছে: ${prevWhatsappProvider} ➔ ${activeWhatsappProvider}`
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'নোটিফিকেশন প্রোভাইডার কনফিগারেশন আপডেট করা হয়েছে!',
+      settings: updated
+    });
   });
 
   app.post('/api/backup', authMiddleware, superAdminOnly, (req: any, res: any) => {
