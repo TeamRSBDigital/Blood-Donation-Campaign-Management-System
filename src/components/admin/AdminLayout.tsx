@@ -8,6 +8,7 @@ import { DonorManagement } from './DonorManagement.js';
 import { BloodRequestManagement } from './BloodRequestManagement.js';
 import { ReportsAnalytics } from './ReportsAnalytics.js';
 import { TelegramNotificationSettings } from './TelegramNotificationSettings.js';
+import { WhatsappNotificationSettings } from './WhatsappNotificationSettings.js';
 import { UserManagement } from './UserManagement.js';
 import { AuditLogViewer } from './AuditLogViewer.js';
 import { SystemSettings } from './SystemSettings.js';
@@ -22,6 +23,7 @@ import {
   Droplet,
   BarChart3,
   Bot,
+  MessageSquare,
   Shield,
   ShieldAlert,
   Settings,
@@ -66,6 +68,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const navItems: NavItem[] = [
     {
@@ -96,7 +99,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       id: 'telegram',
       label: 'টেলিগ্রাম বোট নোটিফিকেশন',
       icon: Bot,
-      requiredRoles: ['SUPER_ADMIN', 'ADMIN'],
+      requiredRoles: ['SUPER_ADMIN'],
+    },
+    {
+      id: 'whatsapp',
+      label: 'হোয়াটসঅ্যাপ ক্লাউড এপিআই',
+      icon: MessageSquare,
+      requiredRoles: ['SUPER_ADMIN'],
     },
     {
       id: 'users',
@@ -131,10 +140,56 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
     item.requiredRoles.includes(currentUserRole)
   );
 
+  // Handle unauthorized URL visits or tab selections
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname.toLowerCase();
+      const searchParams = new URLSearchParams(window.location.search);
+      const hash = window.location.hash.toLowerCase();
+      const tabParam = searchParams.get('tab') || searchParams.get('page');
+
+      const isTelegramAttempt =
+        activeTab === 'telegram' ||
+        tabParam === 'telegram' ||
+        pathname.includes('/telegram') ||
+        hash.includes('telegram');
+
+      if (isTelegramAttempt && currentUserRole !== 'SUPER_ADMIN') {
+        setActiveTab('overview');
+        window.history.replaceState(null, '', '/dashboard');
+        setToastMessage('You do not have permission to access this page.');
+        return;
+      }
+    }
+
+    const currentNav = navItems.find((n) => n.id === activeTab);
+    if (currentNav && !currentNav.requiredRoles.includes(currentUserRole)) {
+      setActiveTab('overview');
+      window.history.replaceState(null, '', '/dashboard');
+      setToastMessage('You do not have permission to access this page.');
+    }
+  }, [activeTab, currentUserRole]);
+
+  // Auto-hide toast notification after 5 seconds
+  React.useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
   const currentNav = navItems.find((n) => n.id === activeTab);
   const isTabAllowed = currentNav ? currentNav.requiredRoles.includes(currentUserRole) : true;
 
   const handleSelectNav = (id: string) => {
+    const targetNav = navItems.find((n) => n.id === id);
+    if (targetNav && !targetNav.requiredRoles.includes(currentUserRole)) {
+      setActiveTab('overview');
+      window.history.replaceState(null, '', '/dashboard');
+      setToastMessage('You do not have permission to access this page.');
+      setMobileDrawerOpen(false);
+      return;
+    }
     setActiveTab(id);
     setMobileDrawerOpen(false);
   };
@@ -445,6 +500,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
               {activeTab === 'requests' && <BloodRequestManagement />}
               {activeTab === 'reports' && <ReportsAnalytics />}
               {activeTab === 'telegram' && <TelegramNotificationSettings />}
+              {activeTab === 'whatsapp' && <WhatsappNotificationSettings />}
               {activeTab === 'users' && <UserManagement />}
               {activeTab === 'audit' && <AuditLogViewer />}
               {activeTab === 'export' && <DataExportCenter />}
@@ -465,6 +521,21 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
         isOpen={showChangePasswordModal}
         onClose={() => setShowChangePasswordModal(false)}
       />
+
+      {/* Toast Notification for Unauthorized Access */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white dark:bg-slate-800 border border-slate-700 dark:border-slate-700 shadow-2xl rounded-2xl px-4 py-3 text-xs font-semibold flex items-center gap-2.5 animate-in slide-in-from-bottom-5 fade-in duration-200">
+          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{toastMessage}</span>
+          <button
+            onClick={() => setToastMessage(null)}
+            className="ml-2 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            aria-label="বন্ধ করুন"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

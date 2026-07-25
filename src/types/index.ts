@@ -127,6 +127,57 @@ export interface Campaign {
   createdAt: string;
 }
 
+export type TelegramNotificationType =
+  | 'NEW_BLOOD_REQUEST'
+  | 'EMERGENCY_BLOOD_REQUEST'
+  | 'BLOOD_REQUEST_STATUS_CHANGED'
+  | 'NEW_DONOR_ADDED'
+  | 'DONOR_UPDATED'
+  | 'DONOR_DELETED'
+  | 'DONOR_AVAILABILITY_CHANGED'
+  | 'NEW_ADMIN_CREATED'
+  | 'ADMIN_REMOVED'
+  | 'ROLE_CHANGED'
+  | 'DATABASE_BACKUP_COMPLETED'
+  | 'SERVER_ERROR'
+  | 'DATABASE_ERROR'
+  | 'SECURITY_WARNING';
+
+export interface TelegramInlineButton {
+  text: string;
+  url?: string;
+  callback_data?: string;
+}
+
+export interface TelegramNotificationLog {
+  id: string;
+  type: TelegramNotificationType;
+  title: string;
+  message: string;
+  triggeredBy: string;
+  relatedRecordId?: string;
+  status: 'SUCCESS' | 'FAILED' | 'PENDING' | 'RETRYING';
+  retryCount: number;
+  maxRetries: number;
+  createdAt: string;
+  deliveredAt?: string;
+  failureReason?: string;
+  chatId?: string;
+  buttons?: TelegramInlineButton[];
+}
+
+export interface TelegramDeliveryStats {
+  totalSent: number;
+  totalSuccess: number;
+  totalFailed: number;
+  totalPending: number;
+  lastSuccessfulDelivery?: string;
+  lastFailedDelivery?: string;
+  lastFailureReason?: string;
+  isConfigured: boolean;
+  isEnabled: boolean;
+}
+
 export interface Notification {
   id: string;
   type: 'BLOOD_REQUEST' | 'CAMPAIGN' | 'DONOR_ALERT' | 'SYSTEM';
@@ -184,6 +235,13 @@ export interface SystemSettings {
   whatsappWebhookUrl?: string;
   enableTelegramNotify: boolean;
   enablePublicRequestPosting: boolean;
+  // WhatsApp Cloud API Configuration
+  whatsappAccessToken?: string;
+  whatsappPhoneNumberId?: string;
+  whatsappBusinessAccountId?: string;
+  whatsappApiVersion?: string;
+  enableWhatsappNotify?: boolean;
+  whatsappReminderIntervalMinutes?: number;
 }
 
 export interface DashboardStats {
@@ -259,4 +317,51 @@ export interface FullAnalyticsData {
     monthlyRegistrationTrend: Array<{ month: string; count: number }>;
     locationDistribution: Array<{ name: string; count: number; available: number }>;
   };
+}
+
+// WhatsApp Notification System Types
+export type WhatsappNotificationType =
+  | 'NEW_BLOOD_REQUEST'
+  | 'EMERGENCY_BLOOD_REQUEST'
+  | 'BLOOD_REQUEST_STATUS_CHANGED'
+  | 'CRITICAL_BLOOD_REQUEST_REMINDER';
+
+export interface WhatsappRecipient {
+  id: string;
+  name: string;
+  phone: string;
+  role?: string;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface WhatsappNotificationLog {
+  id: string;
+  type: WhatsappNotificationType;
+  title: string;
+  message: string;
+  recipientPhone: string;
+  recipientName?: string;
+  triggeredBy: string;
+  relatedRecordId?: string;
+  status: 'SUCCESS' | 'FAILED' | 'PENDING' | 'RETRYING';
+  retryCount: number;
+  maxRetries: number;
+  createdAt: string;
+  deliveredAt?: string;
+  failureReason?: string;
+  waMessageId?: string;
+}
+
+export interface WhatsappDeliveryStats {
+  totalSent: number;
+  totalSuccess: number;
+  totalFailed: number;
+  totalPending: number;
+  lastSuccessfulDelivery?: string;
+  lastFailedDelivery?: string;
+  lastFailureReason?: string;
+  isConfigured: boolean;
+  isEnabled: boolean;
+  activeRecipientsCount: number;
 }

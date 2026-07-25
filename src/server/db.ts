@@ -12,7 +12,12 @@ import {
   EmergencyContact,
   DonationHistory,
   AvailabilityStatus,
-  Notification
+  Notification,
+  TelegramNotificationLog,
+  TelegramDeliveryStats,
+  WhatsappNotificationLog,
+  WhatsappRecipient,
+  WhatsappDeliveryStats
 } from '../types/index.js';
 
 const DATA_FILE_PATH = path.join(process.cwd(), 'pbda_data.json');
@@ -28,6 +33,9 @@ interface DatabaseSchema {
   emergencyContacts: EmergencyContact[];
   donationHistories: DonationHistory[];
   notifications: Notification[];
+  telegramLogs: TelegramNotificationLog[];
+  whatsappLogs: WhatsappNotificationLog[];
+  whatsappRecipients: WhatsappRecipient[];
 }
 
 // Initial Admin Passwords (Hashed during seed initialization if string matches raw)
@@ -68,8 +76,33 @@ const SEED_DATA: DatabaseSchema = {
     enableTelegramNotify: true,
     enablePublicRequestPosting: true,
     telegramBotToken: '',
-    telegramChatId: ''
+    telegramChatId: '',
+    whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
+    whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+    whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+    whatsappApiVersion: process.env.WHATSAPP_API_VERSION || 'v20.0',
+    enableWhatsappNotify: process.env.WHATSAPP_NOTIFICATIONS_ENABLED !== undefined ? process.env.WHATSAPP_NOTIFICATIONS_ENABLED === 'true' : true,
+    whatsappReminderIntervalMinutes: 30
   },
+  whatsappLogs: [],
+  whatsappRecipients: [
+    {
+      id: 'wa-rcpt-1',
+      name: 'ড. মো: তানভীর আহমেদ (সুপার এডমিন)',
+      phone: '8801712345678',
+      role: 'SUPER_ADMIN',
+      enabled: true,
+      createdAt: '2025-01-01T00:00:00.000Z'
+    },
+    {
+      id: 'wa-rcpt-2',
+      name: 'মোঃ মেহেদী হাসান (এডমিন)',
+      phone: '8801812345678',
+      role: 'ADMIN',
+      enabled: true,
+      createdAt: '2025-01-15T00:00:00.000Z'
+    }
+  ],
   adminUsers: [
     {
       id: 'admin-1',
@@ -516,7 +549,8 @@ const SEED_DATA: DatabaseSchema = {
       timestamp: '2026-07-25T10:00:00.000Z'
     }
   ],
-  notifications: []
+  notifications: [],
+  telegramLogs: []
 };
 
 // Database state in memory, synced to disk
@@ -528,6 +562,7 @@ function loadDatabase(): DatabaseSchema {
       const dataStr = fs.readFileSync(DATA_FILE_PATH, 'utf-8');
       const loaded = JSON.parse(dataStr);
       loaded.notifications = loaded.notifications || [];
+      loaded.telegramLogs = loaded.telegramLogs || [];
       return loaded;
     }
   } catch (err) {
@@ -1078,5 +1113,230 @@ export const dbService = {
     saveDatabase();
     this.addAuditLog(actorName, 'ADMIN', 'IMPORT_DONORS', `${count} জন নতুন রক্তদাতার ডাটা বাল্ক ইমপোর্ট করা হয়েছে।`);
     return { importedCount: count };
+  },
+
+  // Dashboard Notifications
+  getNotifications(): Notification[] {
+    return [...(db.notifications || [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  addNotification(notif: Omit<Notification, 'id' | 'createdAt' | 'isRead'>): Notification {
+    const newNotif: Notification = {
+      ...notif,
+      id: `notif-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`,
+      createdAt: new Date().toISOString(),
+      isRead: false
+    };
+    if (!db.notifications) db.notifications = [];
+    db.notifications.unshift(newNotif);
+    if (db.notifications.length > 200) {
+      db.notifications = db.notifications.slice(0, 200);
+    }
+    saveDatabase();
+    return newNotif;
+  },
+
+  // Telegram Logs & Queue Management
+  getTelegramLogs(): TelegramNotificationLog[] {
+    return [...(db.telegramLogs || [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  getTelegramLogById(id: string): TelegramNotificationLog | undefined {
+    return (db.telegramLogs || []).find(l => l.id === id);
+  },
+
+  addTelegramLog(log: Omit<TelegramNotificationLog, 'id' | 'createdAt'>): TelegramNotificationLog {
+    const newLog: TelegramNotificationLog = {
+      ...log,
+      id: `tg-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`,
+      createdAt: new Date().toISOString()
+    };
+    if (!db.telegramLogs) db.telegramLogs = [];
+    db.telegramLogs.unshift(newLog);
+    if (db.telegramLogs.length > 300) {
+      db.telegramLogs = db.telegramLogs.slice(0, 300);
+    }
+    saveDatabase();
+    return newLog;
+  },
+
+  updateTelegramLog(id: string, updateData: Partial<TelegramNotificationLog>): TelegramNotificationLog | undefined {
+    if (!db.telegramLogs) return undefined;
+    const index = db.telegramLogs.findIndex(l => l.id === id);
+    if (index === -1) return undefined;
+
+    const updated = { ...db.telegramLogs[index], ...updateData };
+    db.telegramLogs[index] = updated;
+    saveDatabase();
+    return updated;
+  },
+
+  getTelegramStats(): TelegramDeliveryStats {
+    const logs = db.telegramLogs || [];
+    const settings: Partial<SystemSettings> = db.settings || {};
+    const botToken = process.env.TELEGRAM_BOT_TOKEN || settings.telegramBotToken || '';
+    const chatId = process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_GROUP_CHAT_ID || settings.telegramChatId || '';
+    const isEnabled = process.env.TELEGRAM_NOTIFY_ENABLED !== undefined
+      ? process.env.TELEGRAM_NOTIFY_ENABLED === 'true'
+      : Boolean(settings.enableTelegramNotify);
+
+    const totalSent = logs.length;
+    const totalSuccess = logs.filter(l => l.status === 'SUCCESS').length;
+    const totalFailed = logs.filter(l => l.status === 'FAILED').length;
+    const totalPending = logs.filter(l => l.status === 'PENDING' || l.status === 'RETRYING').length;
+
+    const successLogs = logs.filter(l => l.status === 'SUCCESS');
+    const failedLogs = logs.filter(l => l.status === 'FAILED');
+
+    const lastSuccessfulDelivery = successLogs.length > 0 ? successLogs[0].deliveredAt || successLogs[0].createdAt : undefined;
+    const lastFailedDelivery = failedLogs.length > 0 ? failedLogs[0].createdAt : undefined;
+    const lastFailureReason = failedLogs.length > 0 ? failedLogs[0].failureReason : undefined;
+
+    return {
+      totalSent,
+      totalSuccess,
+      totalFailed,
+      totalPending,
+      lastSuccessfulDelivery,
+      lastFailedDelivery,
+      lastFailureReason,
+      isConfigured: Boolean(botToken && chatId),
+      isEnabled
+    };
+  },
+
+  // ----------------------------------------------------
+  // WHATSAPP CLOUD API LOGS & RECIPIENT MANAGEMENT
+  // ----------------------------------------------------
+  getWhatsappLogs(): WhatsappNotificationLog[] {
+    return [...(db.whatsappLogs || [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  getWhatsappLogById(id: string): WhatsappNotificationLog | undefined {
+    return (db.whatsappLogs || []).find(l => l.id === id);
+  },
+
+  addWhatsappLog(log: Omit<WhatsappNotificationLog, 'id' | 'createdAt'>): WhatsappNotificationLog {
+    const newLog: WhatsappNotificationLog = {
+      ...log,
+      id: `wa-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`,
+      createdAt: new Date().toISOString()
+    };
+    if (!db.whatsappLogs) db.whatsappLogs = [];
+    db.whatsappLogs.unshift(newLog);
+    if (db.whatsappLogs.length > 500) {
+      db.whatsappLogs = db.whatsappLogs.slice(0, 500);
+    }
+    saveDatabase();
+    return newLog;
+  },
+
+  updateWhatsappLog(id: string, updateData: Partial<WhatsappNotificationLog>): WhatsappNotificationLog | undefined {
+    if (!db.whatsappLogs) return undefined;
+    const index = db.whatsappLogs.findIndex(l => l.id === id);
+    if (index === -1) return undefined;
+
+    const updated = { ...db.whatsappLogs[index], ...updateData };
+    db.whatsappLogs[index] = updated;
+    saveDatabase();
+    return updated;
+  },
+
+  getWhatsappRecipients(): WhatsappRecipient[] {
+    return db.whatsappRecipients || [];
+  },
+
+  getWhatsappRecipientById(id: string): WhatsappRecipient | undefined {
+    return (db.whatsappRecipients || []).find(r => r.id === id);
+  },
+
+  addWhatsappRecipient(recipientData: { name: string; phone: string; role?: string; enabled?: boolean }): WhatsappRecipient {
+    if (!db.whatsappRecipients) db.whatsappRecipients = [];
+    
+    // Clean phone number: remove non-digits
+    let cleanPhone = recipientData.phone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('01')) {
+      cleanPhone = `88${cleanPhone}`;
+    }
+
+    const newRecipient: WhatsappRecipient = {
+      id: `rcpt-${Date.now().toString().slice(-6)}`,
+      name: recipientData.name.trim(),
+      phone: cleanPhone,
+      role: recipientData.role || 'ADMIN',
+      enabled: recipientData.enabled !== undefined ? recipientData.enabled : true,
+      createdAt: new Date().toISOString()
+    };
+
+    db.whatsappRecipients.push(newRecipient);
+    saveDatabase();
+    return newRecipient;
+  },
+
+  updateWhatsappRecipient(id: string, updateData: Partial<WhatsappRecipient>): WhatsappRecipient | undefined {
+    if (!db.whatsappRecipients) return undefined;
+    const index = db.whatsappRecipients.findIndex(r => r.id === id);
+    if (index === -1) return undefined;
+
+    if (updateData.phone) {
+      let cleanPhone = updateData.phone.replace(/\D/g, '');
+      if (cleanPhone.startsWith('01')) cleanPhone = `88${cleanPhone}`;
+      updateData.phone = cleanPhone;
+    }
+
+    const updated = { ...db.whatsappRecipients[index], ...updateData };
+    db.whatsappRecipients[index] = updated;
+    saveDatabase();
+    return updated;
+  },
+
+  deleteWhatsappRecipient(id: string): boolean {
+    if (!db.whatsappRecipients) return false;
+    const initialLen = db.whatsappRecipients.length;
+    db.whatsappRecipients = db.whatsappRecipients.filter(r => r.id !== id);
+    if (db.whatsappRecipients.length < initialLen) {
+      saveDatabase();
+      return true;
+    }
+    return false;
+  },
+
+  getWhatsappStats(): WhatsappDeliveryStats {
+    const logs = db.whatsappLogs || [];
+    const settings: Partial<SystemSettings> = db.settings || {};
+    const recipients = db.whatsappRecipients || [];
+
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || settings.whatsappAccessToken || '';
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || settings.whatsappPhoneNumberId || '';
+    const isEnabled = process.env.WHATSAPP_NOTIFICATIONS_ENABLED !== undefined
+      ? process.env.WHATSAPP_NOTIFICATIONS_ENABLED === 'true'
+      : (settings.enableWhatsappNotify ?? true);
+
+    const activeRecipientsCount = recipients.filter(r => r.enabled).length;
+
+    const totalSent = logs.length;
+    const totalSuccess = logs.filter(l => l.status === 'SUCCESS').length;
+    const totalFailed = logs.filter(l => l.status === 'FAILED').length;
+    const totalPending = logs.filter(l => l.status === 'PENDING' || l.status === 'RETRYING').length;
+
+    const successLogs = logs.filter(l => l.status === 'SUCCESS');
+    const failedLogs = logs.filter(l => l.status === 'FAILED');
+
+    const lastSuccessfulDelivery = successLogs.length > 0 ? successLogs[0].deliveredAt || successLogs[0].createdAt : undefined;
+    const lastFailedDelivery = failedLogs.length > 0 ? failedLogs[0].createdAt : undefined;
+    const lastFailureReason = failedLogs.length > 0 ? failedLogs[0].failureReason : undefined;
+
+    return {
+      totalSent,
+      totalSuccess,
+      totalFailed,
+      totalPending,
+      lastSuccessfulDelivery,
+      lastFailedDelivery,
+      lastFailureReason,
+      isConfigured: Boolean(accessToken && phoneNumberId),
+      isEnabled,
+      activeRecipientsCount
+    };
   }
 };

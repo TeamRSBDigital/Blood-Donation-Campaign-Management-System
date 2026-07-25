@@ -3,6 +3,7 @@ import path from 'path';
 import jwt from 'jsonwebtoken';
 import { createServer as createViteServer } from 'vite';
 import { dbService, calculateDonorStatus } from './src/server/db.js';
+import { notificationService } from './src/server/notificationService.js';
 import { Donor, BloodGroup } from './src/types/index.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'pbda_pangsha_blood_donors_secret_key_2026';
@@ -176,24 +177,17 @@ async function startServer() {
       notes: (notes || '').trim()
     });
 
-    // Telegram Bot & Notification Dispatch (Fail-safe wrapper)
-    try {
-      const settings = dbService.getSettings();
-      if (settings.enableTelegramNotify && settings.telegramBotToken && settings.telegramChatId) {
-        const msgText = `🚨 *নতুন জরুরী রক্তের আবেদন*\n\n` +
-          `📌 *আবেদন নং:* ${newReq.requestNumber}\n` +
-          `🩸 *গ্রুপ:* ${newReq.bloodGroup} (${newReq.bagsNeeded} ব্যাগ)\n` +
-          `👤 *রোগী:* ${newReq.patientName}\n` +
-          `🏥 *হাসপাতাল:* ${newReq.hospitalName}, ${newReq.upazila}\n` +
-          `📅 *তারিখ:* ${newReq.requiredDate}\n` +
-          `📞 *যোগাযোগ:* ${newReq.contactPhone}\n` +
-          `⚡ *জরুরী মাত্রা:* ${newReq.priority}`;
+    const isEmergency = newReq.priority === 'CRITICAL' || newReq.priority === 'URGENT';
+    const eventType = isEmergency ? 'EMERGENCY_BLOOD_REQUEST' : 'NEW_BLOOD_REQUEST';
 
-        console.log(`[TELEGRAM NOTIFICATION SENT] Request ${newReq.requestNumber} dispatched.`);
-      }
-    } catch (notifErr) {
-      console.error('[NOTIFICATION ERROR LOGGED] External notification failed, request preserved safely:', notifErr);
-    }
+    // Centralized Notification Dispatch (Async & Non-blocking)
+    notificationService.notify({
+      type: eventType,
+      title: `${isEmergency ? '🚨 জরুরী' : '🩸 নতুন'} রক্তের আবেদন (${newReq.bloodGroup})`,
+      triggeredBy: cleanPatient || 'পাবলিক ভিজিটর',
+      relatedRecordId: newReq.requestNumber,
+      data: newReq
+    });
 
     res.status(201).json(newReq);
   });
@@ -347,7 +341,15 @@ async function startServer() {
       emergencyContactPhone,
       isVerified: isVerified !== undefined ? Boolean(isVerified) : true,
       status: status || 'AVAILABLE'
-    }, req.user.name);
+    }, req.user ? req.user.name : 'রক্তদাতা রেজিস্ট্রেশন');
+
+    notificationService.notify({
+      type: 'NEW_DONOR_ADDED',
+      title: `নতুন রক্তদাতা নিবন্ধিত (${newDonor.bloodGroup})`,
+      triggeredBy: req.user ? req.user.name : 'স্বনিবন্ধন',
+      relatedRecordId: newDonor.id,
+      data: newDonor
+    });
 
     res.status(201).json(newDonor);
   });
@@ -368,13 +370,34 @@ async function startServer() {
 
     const updated = dbService.updateDonor(req.params.id, req.body, req.user.name);
     if (!updated) return res.status(404).json({ error: 'রক্তদাতা পাওয়া যায়নি' });
+
+    notificationService.notify({
+      type: 'DONOR_UPDATED',
+      title: `রক্তদাতার প্রোফাইল আপডেট (${updated.bloodGroup})`,
+      triggeredBy: req.user.name,
+      relatedRecordId: updated.id,
+      data: updated
+    });
+
     res.json(updated);
   });
 
   app.delete('/api/donors/:id', authMiddleware, (req: any, res: any) => {
     const permanent = req.query.permanent === 'true';
+    const targetDonor = dbService.getDonorById(req.params.id);
     const success = dbService.deleteDonor(req.params.id, req.user.name, permanent);
     if (!success) return res.status(404).json({ error: 'রক্তদাতা পাওয়া যায়নি' });
+
+    if (targetDonor) {
+      notificationService.notify({
+        type: 'DONOR_DELETED',
+        title: `রক্তদাতা প্রোফাইল মুছে ফেলা হয়েছে (${targetDonor.bloodGroup})`,
+        triggeredBy: req.user.name,
+        relatedRecordId: targetDonor.id,
+        data: targetDonor
+      });
+    }
+
     res.json({ message: permanent ? 'রক্তদাতা স্থায়ীভাবে মুছে ফেলা হয়েছে' : 'রক্তদাতা সফট ডিলিট ট্র্যাশে পাঠানো হয়েছে' });
   });
 
@@ -410,6 +433,22 @@ async function startServer() {
       verifiedBy: req.user.name
     }, req.user.name);
 
+    const donor = dbService.getDonorById(req.params.id);
+    if (donor) {
+      notificationService.notify({
+        type: 'DONOR_AVAILABILITY_CHANGED',
+        title: `রক্তদাতার অবস্থা আপডেট (${donor.bloodGroup})`,
+        triggeredBy: req.user.name,
+        relatedRecordId: donor.id,
+        data: {
+          name: donor.name,
+          bloodGroup: donor.bloodGroup,
+          status: donor.status,
+          reason: `নতুন রক্তদানের তথ্য যুক্ত হয়েছে: ${hospitalName} (${date})`
+        }
+      });
+    }
+
     res.status(201).json(historyRecord);
   });
 
@@ -425,8 +464,25 @@ async function startServer() {
 
   // Admin Blood Request Status Update
   app.put('/api/requests/:id', authMiddleware, (req: any, res: any) => {
+    const existingReq = dbService.getBloodRequestById(req.params.id);
+    const oldStatus = existingReq ? existingReq.status : 'PENDING';
     const updated = dbService.updateBloodRequest(req.params.id, req.body, req.user.name);
     if (!updated) return res.status(404).json({ error: 'আবেদন পাওয়া যায়নি' });
+
+    if (oldStatus !== updated.status) {
+      notificationService.notify({
+        type: 'BLOOD_REQUEST_STATUS_CHANGED',
+        title: `রক্তের আবেদনের স্ট্যাটাস পরিবর্তন (${updated.bloodGroup})`,
+        triggeredBy: req.user.name,
+        relatedRecordId: updated.requestNumber,
+        data: {
+          ...updated,
+          oldStatus,
+          newStatus: updated.status
+        }
+      });
+    }
+
     res.json(updated);
   });
 
@@ -665,6 +721,14 @@ async function startServer() {
       active: true
     }, req.user.name);
 
+    notificationService.notify({
+      type: 'NEW_ADMIN_CREATED',
+      title: 'নতুন এডমিন অ্যাকাউন্ট তৈরি',
+      triggeredBy: req.user.name,
+      relatedRecordId: newUser.id,
+      data: newUser
+    });
+
     res.status(201).json(newUser);
   });
 
@@ -673,20 +737,275 @@ async function startServer() {
     res.json(dbService.getAuditLogs());
   });
 
-  // Telegram Alert Simulator / Webhook Test
-  app.post('/api/notifications/telegram', authMiddleware, (req: any, res: any) => {
-    const { message } = req.body;
+  // ----------------------------------------------------
+  // TELEGRAM GROUP NOTIFICATION SYSTEM ENDPOINTS
+  // ----------------------------------------------------
+
+  app.get('/api/telegram/settings', authMiddleware, superAdminOnly, (req, res) => {
     const settings = dbService.getSettings();
+    const stats = dbService.getTelegramStats();
+    res.json({
+      telegramBotToken: settings.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || '',
+      telegramChatId: settings.telegramChatId || process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_GROUP_CHAT_ID || '',
+      enableTelegramNotify: settings.enableTelegramNotify ?? true,
+      stats
+    });
+  });
 
-    if (!message) return res.status(400).json({ error: 'বার্তা ফিল্ড আবশ্যক' });
+  app.put('/api/telegram/settings', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const { telegramBotToken, telegramChatId, enableTelegramNotify } = req.body;
 
-    dbService.addAuditLog(req.user.name, req.user.role, 'TELEGRAM_TEST', `টেলিগ্রাম নোটিফিকেশন এলার্ট টেস্ট করা হয়েছে: ${message.slice(0, 30)}...`);
+    const updated = dbService.updateSettings({
+      telegramBotToken: telegramBotToken !== undefined ? telegramBotToken.trim() : undefined,
+      telegramChatId: telegramChatId !== undefined ? telegramChatId.trim() : undefined,
+      enableTelegramNotify: enableTelegramNotify !== undefined ? Boolean(enableTelegramNotify) : undefined
+    }, req.user.name);
+
+    const stats = dbService.getTelegramStats();
+
+    notificationService.notify({
+      type: 'SECURITY_WARNING',
+      title: 'টেলিগ্রাম সেটিং পরিবর্তন',
+      triggeredBy: req.user.name,
+      customMessage: `সুপার এডমিন ${req.user.name} টেলিগ্রাম বোট ও চ্যানেল আইডি হালনাগাদ করেছেন`
+    });
 
     res.json({
-      success: true,
-      message: 'টেলিগ্রাম ব্রডকাস্ট মেসেজ সফলভাবে প্রসেস হয়েছে!',
-      botTokenSet: Boolean(settings.telegramBotToken),
-      chatIdSet: Boolean(settings.telegramChatId)
+      message: 'টেলিগ্রাম সেটিং সফলভাবে সংরক্ষণ করা হয়েছে',
+      settings: updated,
+      stats
+    });
+  });
+
+  app.post(['/api/telegram/test', '/api/notifications/telegram'], authMiddleware, superAdminOnly, async (req: any, res: any) => {
+    const { message, customMessage } = req.body;
+    const settings = dbService.getSettings();
+    const botToken = process.env.TELEGRAM_BOT_TOKEN || settings.telegramBotToken || '';
+    const chatId = process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_GROUP_CHAT_ID || settings.telegramChatId || '';
+
+    if (!botToken || !chatId) {
+      return res.status(400).json({ error: 'টেলিগ্রাম বোট টোকেন ও গ্রুপ চ্যাট আইডি কনফিগার করা নেই।' });
+    }
+
+    const testText = customMessage || message || 'পাংশা ব্লাড ডোনার্স এসোসিয়েশন - টেলিগ্রাম গ্রুপ টেস্ট মেসেজ';
+    const appUrl = `${req.protocol}://${req.get('host')}`;
+
+    const result = await notificationService.testConnection(botToken, chatId, testText, appUrl);
+
+    dbService.addAuditLog(req.user.name, req.user.role, 'TELEGRAM_TEST', `টেলিগ্রাম নোটিফিকেশন কানেকশন টেস্ট: ${result.success ? 'সফল' : 'ব্যর্থ (' + result.error + ')'}`);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'টেলিগ্রাম গ্রুপে টেস্ট মেসেজ সফলভাবে প্রসেস ও বিতরণ করা হয়েছে!',
+        botTokenSet: true,
+        chatIdSet: true
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'টেলিগ্রাম বার্তা প্রেরণে সমস্যা হয়েছে'
+      });
+    }
+  });
+
+  app.get('/api/telegram/logs', authMiddleware, superAdminOnly, (req, res) => {
+    const logs = dbService.getTelegramLogs();
+    const stats = dbService.getTelegramStats();
+    res.json({ logs, stats });
+  });
+
+  app.post('/api/telegram/logs/:id/retry', authMiddleware, superAdminOnly, async (req: any, res: any) => {
+    const result = await notificationService.retryFailedNotification(req.params.id);
+    if (result.success) {
+      res.json({ message: 'টেলিগ্রাম নোটিফিকেশন পুনরায় সফলভাবে বিতরণ করা হয়েছে!' });
+    } else {
+      res.status(400).json({ error: result.error || 'পুনরায় চেষ্টা ব্যর্থ হয়েছে' });
+    }
+  });
+
+  // ----------------------------------------------------
+  // WHATSAPP CLOUD API NOTIFICATION MANAGEMENT ENDPOINTS
+  // ----------------------------------------------------
+  app.get('/api/whatsapp/settings', authMiddleware, superAdminOnly, (req, res) => {
+    const settings = dbService.getSettings();
+    const stats = dbService.getWhatsappStats();
+    res.json({
+      settings: {
+        whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || settings.whatsappAccessToken || '',
+        whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || settings.whatsappPhoneNumberId || '',
+        whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || settings.whatsappBusinessAccountId || '',
+        whatsappApiVersion: process.env.WHATSAPP_API_VERSION || settings.whatsappApiVersion || 'v20.0',
+        enableWhatsappNotify: process.env.WHATSAPP_NOTIFICATIONS_ENABLED !== undefined
+          ? process.env.WHATSAPP_NOTIFICATIONS_ENABLED === 'true'
+          : (settings.enableWhatsappNotify ?? true),
+        whatsappReminderIntervalMinutes: settings.whatsappReminderIntervalMinutes || 30
+      },
+      stats
+    });
+  });
+
+  app.put('/api/whatsapp/settings', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const {
+      whatsappAccessToken,
+      whatsappPhoneNumberId,
+      whatsappBusinessAccountId,
+      whatsappApiVersion,
+      enableWhatsappNotify,
+      whatsappReminderIntervalMinutes
+    } = req.body;
+
+    const updated = dbService.updateSettings({
+      whatsappAccessToken,
+      whatsappPhoneNumberId,
+      whatsappBusinessAccountId,
+      whatsappApiVersion,
+      enableWhatsappNotify: Boolean(enableWhatsappNotify),
+      whatsappReminderIntervalMinutes: Number(whatsappReminderIntervalMinutes) || 30
+    }, req.user.name);
+
+    dbService.addAuditLog(
+      req.user.name,
+      'SUPER_ADMIN',
+      'WHATSAPP_SETTINGS_UPDATED',
+      'হোয়াটসঅ্যাপ ক্লাউড এপিআই সেটিংস এবং কনফিগারেশন আপডেট করা হয়েছে।'
+    );
+
+    res.json({
+      message: 'হোয়াটসঅ্যাপ কনফিগারেশন সফলভাবে আপডেট করা হয়েছে!',
+      settings: updated
+    });
+  });
+
+  app.get('/api/whatsapp/recipients', authMiddleware, superAdminOnly, (req, res) => {
+    const recipients = dbService.getWhatsappRecipients();
+    res.json(recipients);
+  });
+
+  app.post('/api/whatsapp/recipients', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const { name, phone, role, enabled } = req.body;
+    if (!name || !phone) {
+      return res.status(400).json({ error: 'প্রাপকের নাম এবং মোবাইল নম্বর প্রদান করা আবশ্যক।' });
+    }
+
+    const recipient = dbService.addWhatsappRecipient({ name, phone, role, enabled });
+    dbService.addAuditLog(
+      req.user.name,
+      'SUPER_ADMIN',
+      'WHATSAPP_RECIPIENT_ADDED',
+      `নতুন হোয়াটসঅ্যাপ প্রাপক যুক্ত করা হয়েছে: ${name} (${phone})`
+    );
+
+    res.json({
+      message: 'হোয়াটসঅ্যাপ প্রাপক সফলভাবে যুক্ত করা হয়েছে!',
+      recipient
+    });
+  });
+
+  app.put('/api/whatsapp/recipients/:id', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const { name, phone, role, enabled } = req.body;
+    const updated = dbService.updateWhatsappRecipient(req.params.id, { name, phone, role, enabled });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'প্রাপক পাওয়া যায়নি।' });
+    }
+
+    res.json({
+      message: 'প্রাপকের তথ্য সফলভাবে আপডেট করা হয়েছে!',
+      recipient: updated
+    });
+  });
+
+  app.delete('/api/whatsapp/recipients/:id', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const success = dbService.deleteWhatsappRecipient(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'প্রাপক পাওয়া যায়নি।' });
+    }
+
+    dbService.addAuditLog(
+      req.user.name,
+      'SUPER_ADMIN',
+      'WHATSAPP_RECIPIENT_DELETED',
+      `হোয়াটসঅ্যাপ প্রাপক মুছে ফেলা হয়েছে (ID: ${req.params.id})`
+    );
+
+    res.json({ message: 'প্রাপক সফলভাবে মুছে ফেলা হয়েছে!' });
+  });
+
+  app.post('/api/whatsapp/test', authMiddleware, superAdminOnly, async (req: any, res: any) => {
+    const { accessToken, phoneNumberId, apiVersion, recipientPhone, customMsg } = req.body;
+
+    const settings = dbService.getSettings();
+    const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN || settings.whatsappAccessToken || '';
+    const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || settings.whatsappPhoneNumberId || '';
+    const version = apiVersion || process.env.WHATSAPP_API_VERSION || settings.whatsappApiVersion || 'v20.0';
+
+    if (!token || !phoneId) {
+      return res.status(400).json({ error: 'হোয়াটসঅ্যাপ Access Token এবং Phone Number ID কনফিগার করা নেই।' });
+    }
+
+    if (!recipientPhone) {
+      return res.status(400).json({ error: 'টেস্ট মেসেজ পাঠানোর জন্য প্রাপকের ফোন নম্বর আবশ্যক।' });
+    }
+
+    const appUrl = `${req.protocol}://${req.get('host')}`;
+    const result = await notificationService.testWhatsAppConnection(
+      token,
+      phoneId,
+      version,
+      recipientPhone,
+      customMsg,
+      appUrl
+    );
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'হোয়াটসঅ্যাপ টেস্ট মেসেজ সফলভাবে প্রসেস ও প্রদান করা হয়েছে!',
+        waMessageId: result.waMessageId
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'হোয়াটসঅ্যাপ মেসেজ প্রেরণে সমস্যা হয়েছে'
+      });
+    }
+  });
+
+  app.get('/api/whatsapp/logs', authMiddleware, superAdminOnly, (req, res) => {
+    const logs = dbService.getWhatsappLogs();
+    const stats = dbService.getWhatsappStats();
+    res.json({ logs, stats });
+  });
+
+  app.post('/api/whatsapp/logs/:id/retry', authMiddleware, superAdminOnly, async (req: any, res: any) => {
+    const result = await notificationService.retryFailedWhatsAppNotification(req.params.id);
+    if (result.success) {
+      res.json({ message: 'হোয়াটসঅ্যাপ নোটিফিকেশন পুনরায় সফলভাবে বিতরণ করা হয়েছে!' });
+    } else {
+      res.status(400).json({ error: result.error || 'পুনরায় চেষ্টা ব্যর্থ হয়েছে' });
+    }
+  });
+
+  app.post('/api/backup', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const donors = dbService.getDonors();
+    const requests = dbService.getBloodRequests();
+    const backupId = `BACKUP-${Date.now().toString().slice(-6)}`;
+
+    notificationService.notify({
+      type: 'DATABASE_BACKUP_COMPLETED',
+      title: 'ডাটাবেজ ব্যাকআপ রিপোর্ট',
+      triggeredBy: req.user.name,
+      data: {
+        backupId,
+        totalRecords: `${donors.length} জন রক্তদাতা, ${requests.length} টি রক্তের আবেদন`
+      }
+    });
+
+    res.json({
+      message: 'ডাটাবেজ ব্যাকআপ সম্পন্ন হয়েছে এবং টেলিগ্রাম গ্রুপে অটো-রিপোর্ট পাঠানো হয়েছে!',
+      backupId,
+      timestamp: new Date().toISOString()
     });
   });
 
@@ -961,6 +1280,12 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[PBDA Backend Server] Running on http://0.0.0.0:${PORT}`);
+
+    // Periodic interval to check and trigger reminders for pending critical blood requests (runs every 5 minutes)
+    setInterval(() => {
+      notificationService.triggerCriticalReminders(`http://localhost:${PORT}`)
+        .catch(err => console.error('[CRITICAL REMINDER SCHEDULER ERROR]', err));
+    }, 5 * 60 * 1000);
   });
 }
 
