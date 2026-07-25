@@ -67,15 +67,23 @@ async function startServer() {
     const bloodGroup = req.query.bloodGroup as string;
     const union = req.query.union as string;
     const upazila = req.query.upazila as string;
+    const district = req.query.district as string;
+    const gender = req.query.gender as string;
+    const status = req.query.status as string;
     const searchQuery = req.query.searchQuery as string;
     const availableOnly = req.query.availableOnly === 'true';
+    const showTrash = req.query.showTrash === 'true';
 
     const donors = dbService.getDonors({
       bloodGroup,
       union,
       upazila,
+      district,
+      gender,
+      status,
       searchQuery,
-      availableOnly
+      availableOnly,
+      showTrash
     });
 
     res.json(donors);
@@ -179,46 +187,142 @@ async function startServer() {
   });
 
   // Admin Donor Management
+  app.post('/api/donors/check-phone', authMiddleware, (req: any, res: any) => {
+    const { phone, excludeId } = req.body;
+    if (!phone) return res.json({ exists: false });
+    const exists = dbService.checkDuplicatePhone(phone, excludeId);
+    res.json({ exists });
+  });
+
   app.post('/api/donors', authMiddleware, (req: any, res: any) => {
-    const { name, nameEn, bloodGroup, phone, alternativePhone, gender, age, weightKg, district, upazila, union, village, lastDonationDate, hemoglobinLevel, bpNotes, medicalNotes, isVerified } = req.body;
+    const {
+      name,
+      nameEn,
+      bloodGroup,
+      phone,
+      whatsAppPhone,
+      alternativePhone,
+      email,
+      photoUrl,
+      gender,
+      dob,
+      age,
+      weightKg,
+      occupation,
+      division,
+      district,
+      upazila,
+      union,
+      village,
+      lastDonationDate,
+      hemoglobinLevel,
+      bpNotes,
+      hasDiabetes,
+      hasHepatitis,
+      otherDiseases,
+      medicalNotes,
+      canDonate,
+      emergencyContactName,
+      emergencyContactRelation,
+      emergencyContactPhone,
+      isVerified,
+      status
+    } = req.body;
 
     if (!name || !bloodGroup || !phone) {
       return res.status(400).json({ error: 'নাম, রক্তের গ্রুপ ও ফোন নাম্বার আবশ্যক' });
+    }
+
+    if (dbService.checkDuplicatePhone(phone)) {
+      return res.status(400).json({ error: 'এই ফোন নাম্বার দিয়ে ইতিমধ্যে একজন রক্তদাতা নিবন্ধিত রয়েছেন।' });
+    }
+
+    // Auto calculate age if dob present
+    let calculatedAge = Number(age) || 25;
+    if (dob) {
+      const birthYear = new Date(dob).getFullYear();
+      const currentYear = new Date().getFullYear();
+      if (!isNaN(birthYear) && birthYear > 1900 && birthYear < currentYear) {
+        calculatedAge = currentYear - birthYear;
+      }
     }
 
     const newDonor = dbService.addDonor({
       name,
       nameEn,
       bloodGroup: bloodGroup as BloodGroup,
-      phone,
+      phone: phone.trim(),
+      whatsAppPhone,
       alternativePhone,
+      email,
+      photoUrl,
       gender: gender || 'MALE',
-      age: Number(age) || 25,
+      dob,
+      age: calculatedAge,
       weightKg: weightKg ? Number(weightKg) : undefined,
-      district: district || 'Rajbari',
+      occupation,
+      division: division || 'ঢাকা',
+      district: district || 'রাজবাড়ী',
       upazila: upazila || 'পাংশা',
       union: union || 'পাংশা পৌরসভা',
       village: village || 'পাংশা',
       lastDonationDate,
       hemoglobinLevel,
       bpNotes,
+      hasDiabetes: Boolean(hasDiabetes),
+      hasHepatitis: Boolean(hasHepatitis),
+      otherDiseases,
       medicalNotes,
-      isVerified: isVerified !== undefined ? Boolean(isVerified) : true
+      canDonate: canDonate !== undefined ? Boolean(canDonate) : true,
+      emergencyContactName,
+      emergencyContactRelation,
+      emergencyContactPhone,
+      isVerified: isVerified !== undefined ? Boolean(isVerified) : true,
+      status: status || 'AVAILABLE'
     }, req.user.name);
 
     res.status(201).json(newDonor);
   });
 
   app.put('/api/donors/:id', authMiddleware, (req: any, res: any) => {
+    if (req.body.phone && dbService.checkDuplicatePhone(req.body.phone, req.params.id)) {
+      return res.status(400).json({ error: 'এই ফোন নাম্বার দিয়ে অন্য একজন রক্তদাতা নিবন্ধিত রয়েছেন।' });
+    }
+
+    // Auto calculate age if dob present
+    if (req.body.dob) {
+      const birthYear = new Date(req.body.dob).getFullYear();
+      const currentYear = new Date().getFullYear();
+      if (!isNaN(birthYear) && birthYear > 1900 && birthYear < currentYear) {
+        req.body.age = currentYear - birthYear;
+      }
+    }
+
     const updated = dbService.updateDonor(req.params.id, req.body, req.user.name);
     if (!updated) return res.status(404).json({ error: 'রক্তদাতা পাওয়া যায়নি' });
     res.json(updated);
   });
 
   app.delete('/api/donors/:id', authMiddleware, (req: any, res: any) => {
-    const success = dbService.deleteDonor(req.params.id, req.user.name);
+    const permanent = req.query.permanent === 'true';
+    const success = dbService.deleteDonor(req.params.id, req.user.name, permanent);
     if (!success) return res.status(404).json({ error: 'রক্তদাতা পাওয়া যায়নি' });
-    res.json({ message: 'রক্তদাতার ডাটা সফলভাবে মুছে ফেলা হয়েছে' });
+    res.json({ message: permanent ? 'রক্তদাতা স্থায়ীভাবে মুছে ফেলা হয়েছে' : 'রক্তদাতা সফট ডিলিট ট্র্যাশে পাঠানো হয়েছে' });
+  });
+
+  app.post('/api/donors/:id/restore', authMiddleware, (req: any, res: any) => {
+    const success = dbService.restoreDonor(req.params.id, req.user.name);
+    if (!success) return res.status(404).json({ error: 'রক্তদাতা পাওয়া যায়নি' });
+    res.json({ message: 'রক্তদাতা সফলভাবে ট্র্যাশ থেকে পুনরুদ্ধার করা হয়েছে' });
+  });
+
+  app.post('/api/donors/bulk-delete', authMiddleware, (req: any, res: any) => {
+    const { ids, permanent } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'মুছে ফেলার জন্য আইটেম নির্বাচন করুন' });
+    }
+    const count = dbService.bulkDeleteDonors(ids, req.user.name, Boolean(permanent));
+    res.json({ count, message: `${count} জন রক্তদাতা মুছে ফেলা হয়েছে` });
   });
 
   app.post('/api/donors/:id/history', authMiddleware, (req: any, res: any) => {

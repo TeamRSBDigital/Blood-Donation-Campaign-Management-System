@@ -6,7 +6,7 @@ export type RequestPriority = 'NORMAL' | 'URGENT' | 'CRITICAL';
 
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'FULFILLED' | 'CANCELLED';
 
-export type AvailabilityStatus = 'AVAILABLE' | 'RESTRICTED' | 'UNAVAILABLE';
+export type AvailabilityStatus = 'AVAILABLE' | 'UNAVAILABLE' | 'TEMP_UNAVAILABLE' | 'RESTRICTED';
 
 export interface User {
   id: string;
@@ -41,12 +41,16 @@ export interface Donor {
   nameEn?: string;
   bloodGroup: BloodGroup;
   phone: string;
+  whatsAppPhone?: string;
   alternativePhone?: string;
   email?: string;
   photoUrl?: string;
   gender: 'MALE' | 'FEMALE' | 'OTHER';
-  age: number;
+  dob?: string; // YYYY-MM-DD
+  age: number; // Auto calculated or provided
   weightKg?: number;
+  occupation?: string;
+  division?: string;
   district: string;
   upazila: string;
   union: string;
@@ -57,8 +61,18 @@ export interface Donor {
   isAvailableOverride?: boolean;
   hemoglobinLevel?: string;
   bpNotes?: string;
+  hasDiabetes?: boolean;
+  hasHepatitis?: boolean;
+  otherDiseases?: string;
   medicalNotes?: string;
+  canDonate?: boolean;
+  emergencyContactName?: string;
+  emergencyContactRelation?: string;
+  emergencyContactPhone?: string;
   status: AvailabilityStatus;
+  isDeleted?: boolean;
+  deletedAt?: string;
+  createdBy?: string;
   createdAt: string;
   updatedAt: string;
 }

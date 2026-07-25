@@ -561,16 +561,39 @@ export const dbService = {
     bloodGroup?: string;
     union?: string;
     upazila?: string;
+    district?: string;
+    gender?: string;
+    status?: string;
     searchQuery?: string;
     availableOnly?: boolean;
+    showTrash?: boolean;
   }): Donor[] {
     let list = [...db.donors];
 
+    // Soft delete filter
+    if (filter?.showTrash) {
+      list = list.filter(d => d.isDeleted === true);
+    } else {
+      list = list.filter(d => !d.isDeleted);
+    }
+
     // Re-verify donor availability status dynamically
-    list = list.map(d => ({
-      ...d,
-      status: d.isAvailableOverride === false ? 'RESTRICTED' : calculateDonorStatus(d.lastDonationDate, db.settings.eligibilityIntervalDays)
-    }));
+    list = list.map(d => {
+      let finalStatus: AvailabilityStatus = d.status || 'AVAILABLE';
+      if (d.canDonate === false) {
+        finalStatus = 'RESTRICTED';
+      } else if (d.isAvailableOverride === false) {
+        finalStatus = 'RESTRICTED';
+      } else if (d.status === 'UNAVAILABLE' || d.status === 'TEMP_UNAVAILABLE') {
+        finalStatus = d.status;
+      } else {
+        finalStatus = calculateDonorStatus(d.lastDonationDate, db.settings.eligibilityIntervalDays);
+      }
+      return {
+        ...d,
+        status: finalStatus
+      };
+    });
 
     if (filter?.bloodGroup && filter.bloodGroup !== 'ALL') {
       list = list.filter(d => d.bloodGroup === filter.bloodGroup);
@@ -584,6 +607,18 @@ export const dbService = {
       list = list.filter(d => d.upazila.toLowerCase() === filter.upazila.toLowerCase());
     }
 
+    if (filter?.district && filter.district !== 'ALL') {
+      list = list.filter(d => d.district.toLowerCase() === filter.district.toLowerCase());
+    }
+
+    if (filter?.gender && filter.gender !== 'ALL') {
+      list = list.filter(d => d.gender === filter.gender);
+    }
+
+    if (filter?.status && filter.status !== 'ALL') {
+      list = list.filter(d => d.status === filter.status);
+    }
+
     if (filter?.availableOnly) {
       list = list.filter(d => d.status === 'AVAILABLE');
     }
@@ -594,6 +629,11 @@ export const dbService = {
         d.name.toLowerCase().includes(q) ||
         (d.nameEn && d.nameEn.toLowerCase().includes(q)) ||
         d.phone.includes(q) ||
+        (d.whatsAppPhone && d.whatsAppPhone.includes(q)) ||
+        d.bloodGroup.toLowerCase().includes(q) ||
+        d.district.toLowerCase().includes(q) ||
+        d.upazila.toLowerCase().includes(q) ||
+        d.union.toLowerCase().includes(q) ||
         d.village.toLowerCase().includes(q)
       );
     }
@@ -613,13 +653,29 @@ export const dbService = {
   getDonorById(id: string): Donor | undefined {
     const d = db.donors.find(item => item.id === id);
     if (!d) return undefined;
+    let finalStatus: AvailabilityStatus = d.status || 'AVAILABLE';
+    if (d.canDonate === false) {
+      finalStatus = 'RESTRICTED';
+    } else if (d.isAvailableOverride === false) {
+      finalStatus = 'RESTRICTED';
+    } else if (d.status === 'UNAVAILABLE' || d.status === 'TEMP_UNAVAILABLE') {
+      finalStatus = d.status;
+    } else {
+      finalStatus = calculateDonorStatus(d.lastDonationDate, db.settings.eligibilityIntervalDays);
+    }
     return {
       ...d,
-      status: d.isAvailableOverride === false ? 'RESTRICTED' : calculateDonorStatus(d.lastDonationDate, db.settings.eligibilityIntervalDays)
+      status: finalStatus
     };
   },
 
-  addDonor(donorData: Omit<Donor, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'totalDonations'>, actorName?: string): Donor {
+  checkDuplicatePhone(phone: string, excludeId?: string): boolean {
+    const cleanPhone = phone.trim();
+    if (!cleanPhone) return false;
+    return db.donors.some(d => !d.isDeleted && d.phone.trim() === cleanPhone && d.id !== excludeId);
+  },
+
+  addDonor(donorData: Omit<Donor, 'id' | 'createdAt' | 'updatedAt' | 'totalDonations'> & { status?: AvailabilityStatus }, actorName?: string): Donor {
     const newId = `dn-${Date.now().toString().slice(-6)}`;
     const now = new Date().toISOString();
     const calculatedStatus = calculateDonorStatus(donorData.lastDonationDate, db.settings.eligibilityIntervalDays);
@@ -628,8 +684,9 @@ export const dbService = {
       ...donorData,
       id: newId,
       totalDonations: donorData.lastDonationDate ? 1 : 0,
-      status: calculatedStatus,
+      status: donorData.canDonate === false ? 'RESTRICTED' : calculatedStatus,
       isVerified: donorData.isVerified ?? true,
+      createdBy: actorName || donorData.createdBy || 'SYSTEM',
       createdAt: now,
       updatedAt: now,
     };
@@ -657,9 +714,15 @@ export const dbService = {
       updatedAt: now,
     };
 
-    updated.status = updated.isAvailableOverride === false 
-      ? 'RESTRICTED' 
-      : calculateDonorStatus(updated.lastDonationDate, db.settings.eligibilityIntervalDays);
+    if (updated.canDonate === false) {
+      updated.status = 'RESTRICTED';
+    } else if (updated.isAvailableOverride === false) {
+      updated.status = 'RESTRICTED';
+    } else if (updated.status === 'UNAVAILABLE' || updated.status === 'TEMP_UNAVAILABLE') {
+      // keep custom status
+    } else {
+      updated.status = calculateDonorStatus(updated.lastDonationDate, db.settings.eligibilityIntervalDays);
+    }
 
     db.donors[index] = updated;
     saveDatabase();
@@ -671,19 +734,75 @@ export const dbService = {
     return updated;
   },
 
-  deleteDonor(id: string, actorName?: string): boolean {
+  deleteDonor(id: string, actorName?: string, permanent = false): boolean {
     const index = db.donors.findIndex(d => d.id === id);
     if (index === -1) return false;
 
     const donorName = db.donors[index].name;
-    db.donors.splice(index, 1);
+
+    if (permanent) {
+      db.donors.splice(index, 1);
+      if (actorName) {
+        this.addAuditLog(actorName, 'ADMIN', 'PERMANENT_DELETE_DONOR', `রক্তদাতা স্থায়ীভাবে মুছে ফেলা হয়েছে: ${donorName} (ID: ${id})`);
+      }
+    } else {
+      db.donors[index].isDeleted = true;
+      db.donors[index].deletedAt = new Date().toISOString();
+      if (actorName) {
+        this.addAuditLog(actorName, 'ADMIN', 'SOFT_DELETE_DONOR', `রক্তদাতা সফট ডিলিট ট্র্যাশে স্থানান্তরিত হয়েছে: ${donorName} (ID: ${id})`);
+      }
+    }
+
+    saveDatabase();
+    return true;
+  },
+
+  restoreDonor(id: string, actorName?: string): boolean {
+    const donor = db.donors.find(d => d.id === id);
+    if (!donor) return false;
+
+    donor.isDeleted = false;
+    delete donor.deletedAt;
+    donor.updatedAt = new Date().toISOString();
+
     saveDatabase();
 
     if (actorName) {
-      this.addAuditLog(actorName, 'ADMIN', 'DELETE_DONOR', `রক্তদাতা মুছে ফেলা হয়েছে: ${donorName} (ID: ${id})`);
+      this.addAuditLog(actorName, 'ADMIN', 'RESTORE_DONOR', `ট্র্যাশ থেকে রক্তদাতা পুনরুদ্ধার করা হয়েছে: ${donor.name} (ID: ${id})`);
     }
 
     return true;
+  },
+
+  bulkDeleteDonors(ids: string[], actorName?: string, permanent = false): number {
+    let count = 0;
+    const now = new Date().toISOString();
+
+    if (permanent) {
+      db.donors = db.donors.filter(d => {
+        if (ids.includes(d.id)) {
+          count++;
+          return false;
+        }
+        return true;
+      });
+    } else {
+      db.donors.forEach(d => {
+        if (ids.includes(d.id)) {
+          d.isDeleted = true;
+          d.deletedAt = now;
+          count++;
+        }
+      });
+    }
+
+    saveDatabase();
+
+    if (actorName && count > 0) {
+      this.addAuditLog(actorName, 'ADMIN', permanent ? 'BULK_PERMANENT_DELETE_DONORS' : 'BULK_SOFT_DELETE_DONORS', `${count} জন রক্তদাতা মুছে ফেলা হয়েছে`);
+    }
+
+    return count;
   },
 
   // Donation History
