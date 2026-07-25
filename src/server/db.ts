@@ -65,24 +65,56 @@ const SEED_DATA: DatabaseSchema = {
   settings: {
     orgNameBn: 'পাংশা ব্লাড ডোনার্স এসোসিয়েশন',
     orgNameEn: 'Pangsha Blood Donors Association',
+    orgLogoUrl: '/pbda-logo.png',
     mottoBn: 'রক্ত দিন, জীবন বাঁচান - মানব সেবায় আমরা সদা প্রস্তুত',
     mottoEn: 'Donate Blood, Save Lives - Ready to Serve Humanity',
     primaryPhone: '+8801712000000',
     emergencyHotline: '+8801812999888',
     email: 'info@pbdabangladesh.org',
+    supportEmail: 'support@pbdabangladesh.org',
     addressBn: 'পাংশা মডেল থানা রোড, পাংশা পৌরসভা, রাজবাড়ী',
     addressEn: 'Pangsha Model Thana Road, Pangsha Pourashava, Rajbari',
+    websiteUrl: 'https://pbdabangladesh.org',
+    timezone: 'Asia/Dhaka',
+    language: 'bn',
+
+    defaultDistrict: 'Rajbari',
+    defaultUpazila: 'Pangsha',
+    emergencyContactName: 'ড. মো: তানভীর আহমেদ',
+    bloodRequestExpirationHours: 48,
     eligibilityIntervalDays: 90,
+
+    enableDashboardNotify: true,
     enableTelegramNotify: true,
-    enablePublicRequestPosting: true,
-    telegramBotToken: '',
-    telegramChatId: '',
+    enableWhatsappNotify: process.env.WHATSAPP_NOTIFICATIONS_ENABLED !== undefined ? process.env.WHATSAPP_NOTIFICATIONS_ENABLED === 'true' : true,
+    criticalReminderIntervalMinutes: 30,
+    maxRetryAttempts: 3,
+
+    telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
+    telegramChatId: process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_GROUP_CHAT_ID || '',
+
     whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
     whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
     whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
     whatsappApiVersion: process.env.WHATSAPP_API_VERSION || 'v20.0',
-    enableWhatsappNotify: process.env.WHATSAPP_NOTIFICATIONS_ENABLED !== undefined ? process.env.WHATSAPP_NOTIFICATIONS_ENABLED === 'true' : true,
-    whatsappReminderIntervalMinutes: 30
+    whatsappReminderIntervalMinutes: 30,
+
+    sessionTimeoutMinutes: 1440,
+    maxLoginAttempts: 5,
+    passwordPolicy: 'MIN_8_CHARS',
+    activityLogRetentionDays: 90,
+
+    enableAutoBackup: true,
+    backupSchedule: 'DAILY',
+    backupRetentionDays: 30,
+    lastBackupTime: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+    nextScheduledBackup: new Date(Date.now() + 12 * 3600 * 1000).toISOString(),
+
+    appVersion: 'v2.4.0 (Enterprise Build)',
+    environment: 'Cloud Run Production',
+    enablePublicRequestPosting: true,
+    helplinePhone: '+8801812999888',
+    emergencyAnnouncement: ''
   },
   whatsappLogs: [],
   whatsappRecipients: [
@@ -588,10 +620,45 @@ export const dbService = {
     return db.settings;
   },
 
-  updateSettings(newSettings: Partial<SystemSettings>, actorName: string): SystemSettings {
+  updateSettings(newSettings: Partial<SystemSettings>, actorName: string, ipAddress?: string): SystemSettings {
+    const prevSettings = { ...db.settings };
+    const changedKeys: string[] = [];
+    const changeDetails: string[] = [];
+
+    (Object.keys(newSettings) as Array<keyof SystemSettings>).forEach((key) => {
+      if (newSettings[key] !== undefined && newSettings[key] !== prevSettings[key]) {
+        changedKeys.push(key);
+        const prevVal = prevSettings[key] !== undefined ? String(prevSettings[key]) : '(empty)';
+        const newVal = newSettings[key] !== undefined ? String(newSettings[key]) : '(empty)';
+        // Mask secret tokens in audit log
+        const isSecret = key.toLowerCase().includes('token') || key.toLowerCase().includes('password') || key.toLowerCase().includes('secret');
+        const displayPrev = isSecret ? '***' : prevVal;
+        const displayNew = isSecret ? '***' : newVal;
+        changeDetails.push(`${key}: "${displayPrev}" ➔ "${displayNew}"`);
+      }
+    });
+
     db.settings = { ...db.settings, ...newSettings };
     saveDatabase();
-    this.addAuditLog(actorName, 'SUPER_ADMIN', 'UPDATE_SETTINGS', 'সিস্টেম সেটিংস হালনাগাদ করা হয়েছে।');
+
+    if (changedKeys.length > 0) {
+      const summaryText = `সিস্টেম সেটিংস হালনাগাদ করা হয়েছে (${changedKeys.length} টি পরিবর্তন): ${changeDetails.join(' | ')}`;
+      const log: AuditLog = {
+        id: `log-${Date.now().toString().slice(-6)}`,
+        actorName,
+        actorRole: 'SUPER_ADMIN',
+        action: 'UPDATE_SYSTEM_SETTINGS',
+        details: summaryText,
+        ipAddress: ipAddress || '127.0.0.1',
+        timestamp: new Date().toISOString()
+      };
+      db.auditLogs.unshift(log);
+      if (db.auditLogs.length > 500) {
+        db.auditLogs = db.auditLogs.slice(0, 500);
+      }
+      saveDatabase();
+    }
+
     return db.settings;
   },
 

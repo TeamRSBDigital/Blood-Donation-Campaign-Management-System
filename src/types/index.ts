@@ -220,28 +220,67 @@ export interface AuditLog {
 }
 
 export interface SystemSettings {
+  // General Settings
   orgNameBn: string;
   orgNameEn: string;
+  orgLogoUrl?: string;
   mottoBn: string;
   mottoEn: string;
   primaryPhone: string;
   emergencyHotline: string;
   email: string;
+  supportEmail?: string;
   addressBn: string;
   addressEn: string;
+  websiteUrl?: string;
+  timezone?: string;
+  language?: string;
+
+  // Organization Settings
+  defaultDistrict?: string;
+  defaultUpazila?: string;
+  emergencyContactName?: string;
+  bloodRequestExpirationHours?: number;
   eligibilityIntervalDays: number;
+
+  // Notification Settings
+  enableDashboardNotify?: boolean;
+  enableTelegramNotify: boolean;
+  enableWhatsappNotify?: boolean;
+  criticalReminderIntervalMinutes?: number;
+  maxRetryAttempts?: number;
+
+  // Telegram Settings
   telegramBotToken?: string;
   telegramChatId?: string;
-  whatsappWebhookUrl?: string;
-  enableTelegramNotify: boolean;
-  enablePublicRequestPosting: boolean;
+
   // WhatsApp Cloud API Configuration
   whatsappAccessToken?: string;
   whatsappPhoneNumberId?: string;
   whatsappBusinessAccountId?: string;
   whatsappApiVersion?: string;
-  enableWhatsappNotify?: boolean;
+  whatsappWebhookUrl?: string;
   whatsappReminderIntervalMinutes?: number;
+
+  // Security Settings
+  sessionTimeoutMinutes?: number;
+  maxLoginAttempts?: number;
+  passwordPolicy?: string;
+  activityLogRetentionDays?: number;
+
+  // Backup Settings
+  enableAutoBackup?: boolean;
+  backupSchedule?: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  backupRetentionDays?: number;
+  lastBackupTime?: string;
+  nextScheduledBackup?: string;
+
+  // System Information Metadata
+  appVersion?: string;
+  environment?: string;
+  enablePublicRequestPosting?: boolean;
+  helplinePhone?: string;
+  emergencyAnnouncement?: string;
 }
 
 export interface DashboardStats {

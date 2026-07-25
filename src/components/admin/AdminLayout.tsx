@@ -148,13 +148,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       const hash = window.location.hash.toLowerCase();
       const tabParam = searchParams.get('tab') || searchParams.get('page');
 
-      const isTelegramAttempt =
+      const isRestrictedPath =
+        activeTab === 'settings' ||
         activeTab === 'telegram' ||
+        tabParam === 'settings' ||
         tabParam === 'telegram' ||
+        pathname.includes('/settings') ||
         pathname.includes('/telegram') ||
+        hash.includes('settings') ||
         hash.includes('telegram');
 
-      if (isTelegramAttempt && currentUserRole !== 'SUPER_ADMIN') {
+      if (isRestrictedPath && currentUserRole !== 'SUPER_ADMIN') {
         setActiveTab('overview');
         window.history.replaceState(null, '', '/dashboard');
         setToastMessage('You do not have permission to access this page.');
@@ -489,10 +493,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
           </div>
 
           {!isTabAllowed ? (
-            <ForbiddenPage
-              onGoHome={() => setActiveTab('overview')}
-              requiredRole={currentNav?.requiredRoles.join(' / ')}
-            />
+            <AdminOverview onNavigateTab={(tab) => handleSelectNav(tab)} />
           ) : (
             <>
               {activeTab === 'overview' && <AdminOverview onNavigateTab={(tab) => handleSelectNav(tab)} />}

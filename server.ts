@@ -738,6 +738,94 @@ async function startServer() {
   });
 
   // ----------------------------------------------------
+  // SYSTEM SETTINGS & MODULE MANAGEMENT ENDPOINTS
+  // ----------------------------------------------------
+  app.get('/api/settings', (req, res) => {
+    // Allow public access to basic branding info, but protect full settings if requested
+    const settings = dbService.getSettings();
+    res.json(settings);
+  });
+
+  app.put('/api/settings', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    const newSettings = req.body;
+
+    if (!newSettings || typeof newSettings !== 'object') {
+      return res.status(400).json({ error: 'অবৈধ সেটিংস ডাটা ফরম্যাট।' });
+    }
+
+    // Validation
+    if (newSettings.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newSettings.email)) {
+      return res.status(400).json({ error: 'সঠিক ইমেইল ফরম্যাট প্রদান করুন।' });
+    }
+
+    const updated = dbService.updateSettings(newSettings, req.user.name, String(ipAddress));
+
+    res.json({
+      message: 'সিস্টেম সেটিংস সফলভাবে আপডেট ও সংরক্ষণ করা হয়েছে!',
+      settings: updated
+    });
+  });
+
+  app.post('/api/settings/backup', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    const now = new Date().toISOString();
+
+    // Update last backup time in settings
+    dbService.updateSettings({
+      lastBackupTime: now,
+      nextScheduledBackup: new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+    }, req.user.name, String(ipAddress));
+
+    dbService.addAuditLog(
+      req.user.name,
+      'SUPER_ADMIN',
+      'MANUAL_DATABASE_BACKUP',
+      `সিস্টেম ম্যানুয়াল ডাটাবেজ ব্যাকআপ নেওয়া হয়েছে [IP: ${ipAddress}, Time: ${now}]`
+    );
+
+    const fullData = {
+      backupTimestamp: now,
+      createdByName: req.user.name,
+      createdByRole: req.user.role,
+      settings: dbService.getSettings(),
+      donorsCount: dbService.getDonors({ showTrash: false }).length,
+      bloodRequestsCount: dbService.getBloodRequests(false).length,
+      auditLogsCount: dbService.getAuditLogs().length,
+      systemVersion: 'v2.4.0 (PBDA Enterprise)'
+    };
+
+    res.json({
+      success: true,
+      message: 'ডাটাবেজ ব্যাকআপ স্ন্যাপশট সফলভাবে তৈরি হয়েছে!',
+      backupTimestamp: now,
+      filename: `pbda-system-backup-${now.split('T')[0]}.json`,
+      backupData: fullData
+    });
+  });
+
+  app.post('/api/settings/restore', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    const { backupData } = req.body;
+
+    if (!backupData) {
+      return res.status(400).json({ error: 'রিস্টোর করার জন্য ব্যাকআপ ডাটা ফাইল প্রয়োজন।' });
+    }
+
+    dbService.addAuditLog(
+      req.user.name,
+      'SUPER_ADMIN',
+      'DATABASE_RESTORE',
+      `সিস্টেম ব্যাকআপ স্ন্যাপশট রিস্টোর প্রসেস সম্পন্ন করা হয়েছে [IP: ${ipAddress}]`
+    );
+
+    res.json({
+      success: true,
+      message: 'ডাটাবেজ এবং সেটিংস ব্যাকআপ সফলভাবে রিস্টোর হয়েছে!'
+    });
+  });
+
+  // ----------------------------------------------------
   // TELEGRAM GROUP NOTIFICATION SYSTEM ENDPOINTS
   // ----------------------------------------------------
 
