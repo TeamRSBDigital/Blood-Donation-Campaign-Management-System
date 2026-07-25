@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Donor, DonationHistory } from '../types/index.js';
 import { useLanguage } from '../context/LanguageContext.js';
+import { EligibilityBadge } from './common/EligibilityBadge.js';
 import {
   X,
   Phone,
@@ -157,13 +158,16 @@ export const DonorDetailModal: React.FC<DonorDetailModalProps> = ({ donor, onClo
                 <Activity className="w-4 h-4 text-emerald-500" />
                 <span>অবস্থা ও স্বাস্থ্য তথ্য</span>
               </h3>
-              <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
-                <p>
-                  <span className="text-slate-400">স্ট্যাটাস:</span>{' '}
-                  <strong className={isAvailable ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-bold'}>
-                    {isAvailable ? 'প্রস্তুত রক্তদাতা (Available)' : 'বিরতিকালে আছেন (Restricted)'}
-                  </strong>
-                </p>
+              <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                <div className="pt-1">
+                  <p className="text-slate-400 mb-1">রক্তদানের যোগ্যতা ও স্ট্যাটাস:</p>
+                  <EligibilityBadge
+                    lastDonationDate={donor.lastDonationDate}
+                    showNextDate={true}
+                    showDetails={true}
+                    size="md"
+                  />
+                </div>
                 <p><span className="text-slate-400">সর্বশেষ রক্তদান:</span> <strong className="text-slate-900 dark:text-white">{donor.lastDonationDate || 'কখনো দেওয়া হয়নি'}</strong></p>
                 <p><span className="text-slate-400">হিমোগ্লোবিন:</span> <strong className="text-emerald-600 dark:text-emerald-400">{donor.hemoglobinLevel || 'যাচাইকৃত'}</strong></p>
                 <p><span className="text-slate-400">ওজন:</span> {donor.weightKg ? `${donor.weightKg} কেজি` : 'উপযুক্ত (>৫০ কেজি)'}</p>

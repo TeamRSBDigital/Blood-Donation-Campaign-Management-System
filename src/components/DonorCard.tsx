@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Donor } from '../types/index.js';
 import { useLanguage } from '../context/LanguageContext.js';
+import { EligibilityBadge } from './common/index.js';
 import {
   Phone,
   Copy,
@@ -70,26 +71,8 @@ export const DonorCard: React.FC<DonorCardProps> = ({ donor, onSelectDonor }) =>
             </div>
           </div>
 
-          {/* Availability Badge */}
-          <span
-            className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-xs ${
-              isAvailable
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
-                : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'
-            }`}
-          >
-            {isAvailable ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>{t.readyToDonate}</span>
-              </>
-            ) : (
-              <>
-                <Clock className="w-3 h-3 text-amber-600" />
-                <span>{t.notReadyYet}</span>
-              </>
-            )}
-          </span>
+          {/* Availability & Eligibility Badge */}
+          <EligibilityBadge lastDonationDate={donor.lastDonationDate} showNextDate={false} size="sm" />
         </div>
 
         {/* Location & Contact Info */}

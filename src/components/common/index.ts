@@ -3,6 +3,7 @@ export * from './Card.js';
 export * from './ConfirmDialog.js';
 export * from './Container.js';
 export * from './Drawer.js';
+export * from './EligibilityBadge.js';
 export * from './EmptyState.js';
 export * from './ErrorState.js';
 export * from './Input.js';
