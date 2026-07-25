@@ -638,13 +638,34 @@ export const dbService = {
       );
     }
 
-    // Sort: Verified first, then Available first, then Last Donation Date oldest first
+    // Sort in exact order:
+    // 1. Available donors first
+    // 2. Oldest Last Donation Date first
+    // 3. Verified donors first
+    // 4. Recently Updated
     list.sort((a, b) => {
+      // 1. Available donors first
       if (a.status === 'AVAILABLE' && b.status !== 'AVAILABLE') return -1;
       if (a.status !== 'AVAILABLE' && b.status === 'AVAILABLE') return 1;
+
+      // 2. Oldest Last Donation Date first (empty/null date treated as oldest)
+      const dateA = a.lastDonationDate || '';
+      const dateB = b.lastDonationDate || '';
+      if (dateA !== dateB) {
+        if (!dateA) return -1;
+        if (!dateB) return 1;
+        const comp = dateA.localeCompare(dateB);
+        if (comp !== 0) return comp;
+      }
+
+      // 3. Verified donors first
       if (a.isVerified && !b.isVerified) return -1;
       if (!a.isVerified && b.isVerified) return 1;
-      return (a.lastDonationDate || '').localeCompare(b.lastDonationDate || '');
+
+      // 4. Recently Updated (descending)
+      const updateA = a.updatedAt || '';
+      const updateB = b.updatedAt || '';
+      return updateB.localeCompare(updateA);
     });
 
     return list;

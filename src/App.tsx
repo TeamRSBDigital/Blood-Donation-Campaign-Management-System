@@ -19,10 +19,29 @@ import { BloodGroup } from './types/index.js';
 
 const AppContent: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>('home');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (
+        window.location.pathname.includes('/search') ||
+        searchParams.has('blood_group') ||
+        searchParams.has('bloodGroup')
+      ) {
+        return 'search';
+      }
+    }
+    return 'home';
+  });
 
   // Selected blood group filter passed from Hero or Request board to DonorSearch
-  const [heroSelectedGroup, setHeroSelectedGroup] = useState<BloodGroup | null>(null);
+  const [heroSelectedGroup, setHeroSelectedGroup] = useState<BloodGroup | null>(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const groupParam = searchParams.get('blood_group') || searchParams.get('bloodGroup');
+      if (groupParam) return groupParam as BloodGroup;
+    }
+    return null;
+  });
 
   // Modals state
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);

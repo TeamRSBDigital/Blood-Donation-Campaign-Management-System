@@ -15,6 +15,13 @@ export interface UpazilaOption {
 export const DISTRICT_NAME_BN = 'রাজবাড়ী';
 export const DISTRICT_NAME_EN = 'Rajbari';
 
+export const RAJBARI_DISTRICTS = [
+  { id: 'rajbari', nameBn: 'রাজবাড়ী', nameEn: 'Rajbari' },
+  { id: 'kushtia', nameBn: 'কুষ্টিয়া', nameEn: 'Kushtia' },
+  { id: 'magura', nameBn: 'মাগুরা', nameEn: 'Magura' },
+  { id: 'faridpur', nameBn: 'ফরিদপুর', nameEn: 'Faridpur' },
+];
+
 export const PANGSHA_UNIONS: UnionOption[] = [
   { id: 'pangsha-pourashava', nameBn: 'পাংশা পৌরসভা', nameEn: 'Pangsha Pourashava' },
   { id: 'bahadurpur', nameBn: 'বাহাদুরপুর', nameEn: 'Bahadurpur' },
