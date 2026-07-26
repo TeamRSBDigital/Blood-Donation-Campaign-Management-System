@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { LanguageProvider } from './context/LanguageContext.js';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { ThemeProvider } from './context/ThemeContext.js';
@@ -14,7 +14,7 @@ import { PublicBloodRequestForm } from './components/PublicBloodRequestForm.js';
 import { CampaignsSection } from './components/CampaignsSection.js';
 import { BecomeDonorSection } from './components/BecomeDonorSection.js';
 import { EmergencyDirectory } from './components/EmergencyDirectory.js';
-import { AdminLoginModal } from './components/AdminLoginModal.js';
+import { AdminLoginPage } from './components/AdminLoginPage.js';
 import { BloodGroup } from './types/index.js';
 import { Loader2 } from 'lucide-react';
 
@@ -22,10 +22,11 @@ import { Loader2 } from 'lucide-react';
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout.js').then(module => ({ default: module.AdminLayout })));
 
 const AppContent: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      const pathname = window.location.pathname;
+      const pathname = window.location.pathname.toLowerCase();
       const searchParams = new URLSearchParams(window.location.search);
       if (
         pathname.includes('/dashboard') ||
@@ -54,7 +55,34 @@ const AppContent: React.FC = () => {
     return 'home';
   });
 
-  // Selected blood group filter passed from Hero or Request board to DonorSearch
+  // Handle URL changes & popstate
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window !== 'undefined') {
+        const pathname = window.location.pathname.toLowerCase();
+        if (pathname.includes('/dashboard') || pathname.includes('/admin')) {
+          setActiveTab('admin');
+        } else if (pathname.includes('/search')) {
+          setActiveTab('search');
+        } else if (pathname.includes('/request-blood')) {
+          setActiveTab('request-blood');
+        } else if (pathname.includes('/campaigns')) {
+          setActiveTab('campaigns');
+        } else if (pathname.includes('/register')) {
+          setActiveTab('register');
+        } else if (pathname.includes('/emergency')) {
+          setActiveTab('emergency');
+        } else if (pathname === '/' || pathname === '') {
+          setActiveTab('home');
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Selected blood group filter
   const [heroSelectedGroup, setHeroSelectedGroup] = useState<BloodGroup | null>(() => {
     if (typeof window !== 'undefined') {
       const searchParams = new URLSearchParams(window.location.search);
@@ -64,8 +92,7 @@ const AppContent: React.FC = () => {
     return null;
   });
 
-  // Modals state
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  // Modal state for public blood requests
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
   // Handle hero or request matcher clicking a blood group
@@ -74,39 +101,50 @@ const AppContent: React.FC = () => {
     setActiveTab('search');
   };
 
-  // If in admin view mode and authenticated
-  if (activeTab === 'admin' && user) {
+  // If activeTab is 'admin' (e.g. visiting /admin/login or /dashboard)
+  if (activeTab === 'admin') {
+    if (!isAuthenticated) {
+      return (
+        <AdminLoginPage
+          onSuccessLogin={() => setActiveTab('admin')}
+          onGoHome={() => {
+            setActiveTab('home');
+            if (typeof window !== 'undefined') {
+              window.history.pushState({}, '', '/');
+            }
+          }}
+        />
+      );
+    }
+
     return (
       <Suspense
         fallback={
-          <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-10 h-10 text-rose-500 animate-spin" />
-            <p className="text-xs font-bold text-slate-400">এডমিন ড্যাশবোর্ড লোড হচ্ছে...</p>
+          <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-10 h-10 text-red-600 animate-spin" />
+            <p className="text-xs font-bold text-gray-600">এডমিন ড্যাশবোর্ড লোড হচ্ছে...</p>
           </div>
         }
       >
-        <AdminLayout onBackToPublicSite={() => setActiveTab('home')} />
+        <AdminLayout onBackToPublicSite={() => {
+          setActiveTab('home');
+          if (typeof window !== 'undefined') {
+            window.history.pushState({}, '', '/');
+          }
+        }} />
       </Suspense>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors selection:bg-red-500 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900 selection:bg-red-600 selection:text-white">
       {/* Header */}
       <Header
         activeTab={activeTab}
+        setActiveTab={setActiveTab}
         onTabChange={(tab) => {
-          if (tab === 'admin') {
-            if (user) {
-              setActiveTab('admin');
-            } else {
-              setIsLoginModalOpen(true);
-            }
-          } else {
-            setActiveTab(tab);
-          }
+          setActiveTab(tab);
         }}
-        onOpenLoginModal={() => setIsLoginModalOpen(true)}
         onOpenPublicRequestModal={() => setActiveTab('request-blood')}
       />
 
@@ -144,14 +182,7 @@ const AppContent: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <Footer onTabChange={(tab) => setActiveTab(tab)} />
-
-      {/* Admin Login Modal */}
-      <AdminLoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
-        onSuccessLogin={() => setActiveTab('admin')}
-      />
+      <Footer setActiveTab={setActiveTab} onTabChange={(tab) => setActiveTab(tab)} />
 
       {/* Public Blood Request Post Modal */}
       <PublicBloodRequestForm

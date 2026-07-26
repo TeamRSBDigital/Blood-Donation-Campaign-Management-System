@@ -117,7 +117,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -369,64 +368,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
                 onClose={() => setNotificationOpen(false)}
                 onNavigateRequests={() => handleSelectNav('requests')}
               />
-            </div>
-
-            {/* Dark Mode Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors flex items-center gap-1"
-                aria-label="থিম পরিবর্তন করুন"
-              >
-                {theme === 'dark' ? (
-                  <Moon className="w-4 h-4 text-amber-400" />
-                ) : theme === 'light' ? (
-                  <Sun className="w-4 h-4 text-amber-400" />
-                ) : (
-                  <Laptop className="w-4 h-4 text-blue-400" />
-                )}
-              </button>
-
-              {themeDropdownOpen && (
-                <div className="absolute right-0 top-12 w-36 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-1 space-y-0.5 text-xs font-bold animate-in fade-in duration-150">
-                  <button
-                    onClick={() => {
-                      setThemeMode('light');
-                      setThemeDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left ${
-                      theme === 'light' ? 'bg-red-50 dark:bg-red-950/60 text-red-600' : 'hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    <Sun className="w-3.5 h-3.5" />
-                    <span>লাইট থিম</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setThemeMode('dark');
-                      setThemeDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left ${
-                      theme === 'dark' ? 'bg-red-50 dark:bg-red-950/60 text-red-600' : 'hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    <Moon className="w-3.5 h-3.5" />
-                    <span>ডার্ক থিম</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setThemeMode('system');
-                      setThemeDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left ${
-                      theme === 'system' ? 'bg-red-50 dark:bg-red-950/60 text-red-600' : 'hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    <Laptop className="w-3.5 h-3.5" />
-                    <span>সিস্টেম থিম</span>
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Profile Dropdown */}
