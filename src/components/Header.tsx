@@ -89,10 +89,10 @@ export const Header: React.FC<HeaderProps> = ({
             প
           </div>
           <div>
-            <h1 className="text-sm md:text-lg font-black leading-tight text-red-600 flex items-center gap-1 md:gap-1.5">
-              <span className="md:hidden">{language === 'bn' ? 'পাংশা ব্লাড' : 'Pangsha Blood'}</span>
+            <h1 className="text-sm md:text-lg font-black leading-tight text-red-600 flex items-center gap-1 md:gap-1.5 whitespace-nowrap">
+              <span className="md:hidden">PBDA</span>
               <span className="hidden md:inline">{t.orgName}</span>
-              <span className="text-[10px] font-extrabold bg-red-50 text-red-700 border border-red-200 px-1 py-0.5 md:px-1.5 rounded uppercase tracking-wider">
+              <span className="hidden md:inline-block text-[10px] font-extrabold bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 rounded uppercase tracking-wider">
                 PBDA
               </span>
             </h1>
