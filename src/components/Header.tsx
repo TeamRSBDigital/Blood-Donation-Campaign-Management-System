@@ -83,25 +83,26 @@ export const Header: React.FC<HeaderProps> = ({
             handleTabClick('home');
             setMobileMenuOpen(false);
           }}
-          className="flex items-center gap-3 text-left group shrink-0"
+          className="flex items-center gap-2 md:gap-3 text-left group shrink-0"
         >
-          <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-md group-hover:bg-red-700 transition-all">
+          <div className="w-8 h-8 md:w-10 md:h-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-black text-base md:text-xl shadow-md group-hover:bg-red-700 transition-all">
             প
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-black leading-tight text-red-600 flex items-center gap-1.5">
-              <span>{t.orgName}</span>
-              <span className="text-[10px] font-extrabold bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 rounded uppercase tracking-wider">
+            <h1 className="text-sm md:text-lg font-black leading-tight text-red-600 flex items-center gap-1 md:gap-1.5">
+              <span className="md:hidden">{language === 'bn' ? 'পাংশা ব্লাড' : 'Pangsha Blood'}</span>
+              <span className="hidden md:inline">{t.orgName}</span>
+              <span className="text-[10px] font-extrabold bg-red-50 text-red-700 border border-red-200 px-1 py-0.5 md:px-1.5 rounded uppercase tracking-wider">
                 PBDA
               </span>
             </h1>
-            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">
+            <p className="hidden md:block text-[10px] uppercase tracking-widest text-gray-500 font-semibold">
               Pangsha Blood Donors Association
             </p>
           </div>
         </button>
 
-        {/* Centered Navigation Links with Generous Spacing */}
+        {/* Centered Navigation Links for Desktop (xl+) */}
         <nav className="hidden xl:flex items-center space-x-6 justify-center flex-1">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
@@ -109,7 +110,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 key={item.id}
                 onClick={() => handleTabClick(item.id)}
-                className={`text-sm font-bold transition-all py-2 px-1 relative ${
+                className={`text-sm font-bold transition-all py-2 px-1 relative cursor-pointer ${
                   isActive
                     ? 'text-red-600 border-b-2 border-red-600'
                     : 'text-gray-700 hover:text-red-600'
@@ -121,8 +122,8 @@ export const Header: React.FC<HeaderProps> = ({
           })}
         </nav>
 
-        {/* Right Section: Language Toggle + Primary CTA Button */}
-        <div className="hidden sm:flex items-center gap-3 shrink-0">
+        {/* Right Section for Desktop / Tablet (md+) */}
+        <div className="hidden md:flex items-center gap-3 shrink-0">
           {/* Language Toggle */}
           <button
             onClick={toggleLanguage}
@@ -143,11 +144,12 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Mobile Hamburger Toggle */}
-        <div className="flex items-center gap-2 xl:hidden">
+        {/* Mobile Controls (<768px): Language Button + Menu Toggle */}
+        <div className="flex items-center gap-2 md:hidden shrink-0">
           <button
             onClick={toggleLanguage}
-            className="px-2.5 py-1 text-xs font-bold border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+            aria-label="Switch Language"
+            className="px-2.5 py-1 text-xs font-bold border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 cursor-pointer"
           >
             {language === 'bn' ? 'EN' : 'বাং'}
           </button>
@@ -156,9 +158,9 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label="Toggle navigation menu"
             aria-expanded={mobileMenuOpen}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-xl text-gray-700 hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-xl text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
