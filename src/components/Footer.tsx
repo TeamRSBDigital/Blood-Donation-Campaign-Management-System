@@ -57,27 +57,37 @@ export const Footer: React.FC<FooterProps> = ({
             </h4>
             <ul className="space-y-2 text-xs font-medium text-gray-700">
               <li>
-                <button onClick={() => handleTabClick('search')} className="hover:text-red-600 transition-colors flex items-center gap-1">
+                <button onClick={() => handleTabClick('search')} className="hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer">
                   <span>›</span> {t.searchDonors}
                 </button>
               </li>
               <li>
-                <button onClick={() => handleTabClick('requests')} className="hover:text-red-600 transition-colors flex items-center gap-1">
+                <button onClick={() => handleTabClick('requests')} className="hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer">
                   <span>›</span> {t.bloodRequests}
                 </button>
               </li>
               <li>
-                <button onClick={() => handleTabClick('campaigns')} className="hover:text-red-600 transition-colors flex items-center gap-1">
-                  <span>›</span> {t.campaigns}
-                </button>
-              </li>
-              <li>
-                <button onClick={() => handleTabClick('register')} className="hover:text-red-600 transition-colors flex items-center gap-1">
+                <button onClick={() => handleTabClick('register')} className="hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer">
                   <span>›</span> {t.becomeDonor}
                 </button>
               </li>
               <li>
-                <button onClick={() => handleTabClick('emergency')} className="hover:text-red-600 transition-colors flex items-center gap-1">
+                <button onClick={() => handleTabClick('campaigns')} className="hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer">
+                  <span>›</span> {t.campaigns}
+                </button>
+              </li>
+              <li>
+                <button onClick={() => handleTabClick('gallery')} className="hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer">
+                  <span>›</span> {language === 'bn' ? 'গ্যালারি' : 'Gallery'}
+                </button>
+              </li>
+              <li>
+                <button onClick={() => handleTabClick('contact')} className="hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer">
+                  <span>›</span> {language === 'bn' ? 'যোগাযোগ' : 'Contact'}
+                </button>
+              </li>
+              <li>
+                <button onClick={() => handleTabClick('emergency')} className="hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer">
                   <span>›</span> {t.emergencyContacts}
                 </button>
               </li>
