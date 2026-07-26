@@ -6,6 +6,8 @@ import {
   BloodRequest,
   Campaign,
   AdminUser,
+  UserRole,
+  UserStatus,
   AuditLog,
   SystemSettings,
   GalleryImage,
@@ -1100,12 +1102,31 @@ export const dbService = {
   },
 
   // Admin Auth Helpers
-  getAdminUsers(): AdminUser[] {
-    return db.adminUsers;
+  getAdminUsers(includeDeleted = false): AdminUser[] {
+    return db.adminUsers
+      .filter(u => includeDeleted || !u.isDeleted)
+      .map(u => ({
+        ...u,
+        status: u.status || (u.active ? 'ACTIVE' : 'INACTIVE')
+      }));
   },
 
   findAdminByEmail(email: string): AdminUser | undefined {
-    return db.adminUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const u = db.adminUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && !u.isDeleted);
+    if (!u) return undefined;
+    return {
+      ...u,
+      status: u.status || (u.active ? 'ACTIVE' : 'INACTIVE')
+    };
+  },
+
+  getAdminUserById(id: string): AdminUser | undefined {
+    const u = db.adminUsers.find(u => u.id === id && !u.isDeleted);
+    if (!u) return undefined;
+    return {
+      ...u,
+      status: u.status || (u.active ? 'ACTIVE' : 'INACTIVE')
+    };
   },
 
   verifyAdminPassword(email: string, rawPassword: string): boolean {
@@ -1127,12 +1148,155 @@ export const dbService = {
       ...user,
       id: `admin-${Date.now().toString().slice(-6)}`,
       createdAt: new Date().toISOString(),
-      active: true
+      active: true,
+      status: 'ACTIVE',
+      isDeleted: false
     };
     db.adminUsers.push(newAdmin);
     saveDatabase();
-    this.addAuditLog(actorName, 'SUPER_ADMIN', 'ADD_ADMIN_USER', `নতুন এডমিন ব্যবহারকারী যুক্ত করা হয়েছে: ${newAdmin.name} (${newAdmin.role})`);
+    this.addAuditLog(actorName, 'SUPER_ADMIN', 'USER_CREATED', `নতুন এডমিন ব্যবহারকারী যুক্ত করা হয়েছে: ${newAdmin.name} (${newAdmin.role})`);
     return newAdmin;
+  },
+
+  updateAdminUser(id: string, updates: Partial<AdminUser>, actorName: string): AdminUser {
+    const userIndex = db.adminUsers.findIndex(u => u.id === id && !u.isDeleted);
+    if (userIndex === -1) {
+      throw new Error('ব্যবহারকারী পাওয়া যায়নি');
+    }
+
+    const prev = db.adminUsers[userIndex];
+    const updatedUser: AdminUser = {
+      ...prev,
+      ...updates,
+      id: prev.id,
+      role: prev.role
+    };
+
+    db.adminUsers[userIndex] = updatedUser;
+    saveDatabase();
+
+    this.addAuditLog(
+      actorName,
+      'SUPER_ADMIN',
+      'USER_UPDATED',
+      `ব্যবহারকারীর প্রোফাইল তথ্য আপডেট করা হয়েছে: ${updatedUser.name} (${updatedUser.email})`
+    );
+
+    return updatedUser;
+  },
+
+  updateAdminUserRole(
+    id: string,
+    newRole: UserRole,
+    actorName: string,
+    actorId?: string,
+    actorEmail?: string
+  ): AdminUser {
+    const userIndex = db.adminUsers.findIndex(u => u.id === id && !u.isDeleted);
+    if (userIndex === -1) {
+      throw new Error('ব্যবহারকারী পাওয়া যায়নি');
+    }
+
+    const targetUser = db.adminUsers[userIndex];
+
+    if ((actorId && targetUser.id === actorId) || (actorEmail && targetUser.email.toLowerCase() === actorEmail.toLowerCase())) {
+      throw new Error('আপনি নিজের ভূমিকা (Role) পরিবর্তন করতে পারবেন না।');
+    }
+
+    const oldRole = targetUser.role;
+    targetUser.role = newRole;
+
+    saveDatabase();
+
+    this.addAuditLog(
+      actorName,
+      'SUPER_ADMIN',
+      'USER_ROLE_CHANGED',
+      `ভূমিকা পরিবর্তন করা হয়েছে: ${targetUser.name} (${oldRole} ➔ ${newRole})`
+    );
+
+    return targetUser;
+  },
+
+  updateAdminUserStatus(
+    id: string,
+    newStatus: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
+    actorName: string,
+    actorId?: string,
+    actorEmail?: string
+  ): AdminUser {
+    const userIndex = db.adminUsers.findIndex(u => u.id === id && !u.isDeleted);
+    if (userIndex === -1) {
+      throw new Error('ব্যবহারকারী পাওয়া যায়নি');
+    }
+
+    const targetUser = db.adminUsers[userIndex];
+
+    if (((actorId && targetUser.id === actorId) || (actorEmail && targetUser.email.toLowerCase() === actorEmail.toLowerCase())) && newStatus !== 'ACTIVE') {
+      throw new Error('আপনি নিজের অ্যাকাউন্ট স্থগিত বা নিষ্ক্রিয় করতে পারবেন না।');
+    }
+
+    if (targetUser.role === 'SUPER_ADMIN' && newStatus !== 'ACTIVE') {
+      const activeSuperAdmins = db.adminUsers.filter(u => !u.isDeleted && u.active && u.role === 'SUPER_ADMIN');
+      if (activeSuperAdmins.length <= 1) {
+        throw new Error('সর্বশেষ সক্রিয় সুপার এডমিন অ্যাকাউন্ট স্থগিত করা সম্ভব নয়।');
+      }
+    }
+
+    const oldStatus = targetUser.status || (targetUser.active ? 'ACTIVE' : 'INACTIVE');
+    targetUser.status = newStatus;
+    targetUser.active = (newStatus === 'ACTIVE');
+
+    saveDatabase();
+
+    this.addAuditLog(
+      actorName,
+      'SUPER_ADMIN',
+      'USER_STATUS_CHANGED',
+      `অ্যাাকাউন্ট স্ট্যাটাস পরিবর্তন: ${targetUser.name} (${oldStatus} ➔ ${newStatus})`
+    );
+
+    return targetUser;
+  },
+
+  deleteAdminUser(
+    id: string,
+    actorName: string,
+    actorId?: string,
+    actorEmail?: string
+  ): boolean {
+    const userIndex = db.adminUsers.findIndex(u => u.id === id && !u.isDeleted);
+    if (userIndex === -1) {
+      throw new Error('ব্যবহারকারী পাওয়া যায়নি');
+    }
+
+    const targetUser = db.adminUsers[userIndex];
+
+    if ((actorId && targetUser.id === actorId) || (actorEmail && targetUser.email.toLowerCase() === actorEmail.toLowerCase())) {
+      throw new Error('নিজের অ্যাকাউন্ট অপসারণ করা সম্ভব নয়।');
+    }
+
+    if (targetUser.role === 'SUPER_ADMIN') {
+      const activeSuperAdmins = db.adminUsers.filter(u => !u.isDeleted && u.active && u.role === 'SUPER_ADMIN');
+      if (activeSuperAdmins.length <= 1) {
+        throw new Error('সর্বশেষ সক্রিয় সুপার এডমিন অ্যাকাউন্ট রিমুভ করা সম্ভব নয়।');
+      }
+    }
+
+    targetUser.isDeleted = true;
+    targetUser.active = false;
+    targetUser.status = 'DELETED';
+
+    saveDatabase();
+
+    this.addAuditLog(
+      actorName,
+      'SUPER_ADMIN',
+      'USER_REMOVED',
+      `ব্যবহারকারী সফলভাবে রিমুভ করা হয়েছে (Soft Deleted): ${targetUser.name} (${targetUser.role})`
+    );
+
+    return true;
   },
 
   // Audit Logs

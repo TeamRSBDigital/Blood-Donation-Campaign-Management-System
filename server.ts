@@ -704,7 +704,10 @@ async function startServer() {
   });
 
   // Admin User Management
-  app.get('/api/users', authMiddleware, superAdminOnly, (req, res) => {
+  app.get('/api/users', authMiddleware, (req: any, res: any) => {
+    if (req.user?.role === 'VOLUNTEER') {
+      return res.status(403).json({ error: 'ভলান্টিয়ার অ্যাকাউন্টের মাধ্যমে আরবিএসি লিস্ট দেখার অনুমতি নেই।' });
+    }
     res.json(dbService.getAdminUsers());
   });
 
@@ -719,7 +722,8 @@ async function startServer() {
       email,
       phone: phone || '',
       role,
-      active: true
+      active: true,
+      status: 'ACTIVE'
     }, req.user.name);
 
     notificationService.notify({
@@ -731,6 +735,51 @@ async function startServer() {
     });
 
     res.status(201).json(newUser);
+  });
+
+  app.put('/api/users/:id', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const { name, email, phone } = req.body;
+      const updated = dbService.updateAdminUser(req.params.id, { name, email, phone }, req.user.name);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'ইউজার আপডেট করতে ব্যর্থ হয়েছে।' });
+    }
+  });
+
+  app.put('/api/users/:id/role', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const { role } = req.body;
+      if (!role || !['SUPER_ADMIN', 'ADMIN', 'VOLUNTEER'].includes(role)) {
+        return res.status(400).json({ error: 'সঠিক ভূমিকা (Role) নির্বাচন করুন।' });
+      }
+      const updated = dbService.updateAdminUserRole(req.params.id, role, req.user.name, req.user.id, req.user.email);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'ভূমিকা পরিবর্তন করতে ব্যর্থ হয়েছে।' });
+    }
+  });
+
+  app.put('/api/users/:id/status', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const { status } = req.body;
+      if (!status || !['ACTIVE', 'INACTIVE', 'SUSPENDED'].includes(status)) {
+        return res.status(400).json({ error: 'সঠিক স্ট্যাটাস প্রদান করুন।' });
+      }
+      const updated = dbService.updateAdminUserStatus(req.params.id, status, req.user.name, req.user.id, req.user.email);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'স্ট্যাটাস আপডেট করতে ব্যর্থ হয়েছে।' });
+    }
+  });
+
+  app.delete('/api/users/:id', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      dbService.deleteAdminUser(req.params.id, req.user.name, req.user.id, req.user.email);
+      res.json({ message: 'ব্যবহারকারী সফলভাবে অপসারণ করা হয়েছে (Soft Deleted)।' });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'ব্যবহারকারী অপসারণ করতে ব্যর্থ হয়েছে।' });
+    }
   });
 
   // Audit Logs

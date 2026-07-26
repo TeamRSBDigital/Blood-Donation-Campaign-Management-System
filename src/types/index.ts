@@ -2,6 +2,8 @@ export type BloodGroup = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-'
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'VOLUNTEER';
 
+export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
+
 export type RequestPriority = 'NORMAL' | 'URGENT' | 'CRITICAL';
 
 export type RequestStatus = 'PENDING' | 'SEARCHING' | 'MATCHED' | 'FULFILLED' | 'COMPLETED' | 'CANCELLED' | 'APPROVED';
@@ -18,6 +20,8 @@ export interface User {
   createdAt: string;
   lastLogin?: string;
   active: boolean;
+  status?: UserStatus;
+  isDeleted?: boolean;
 }
 
 export interface AdminUser extends User {}
