@@ -294,10 +294,13 @@ export interface SystemSettings {
 
   // Backup Settings
   enableAutoBackup?: boolean;
-  backupSchedule?: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  backupSchedule?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
+  customScheduleCron?: string;
+  backupRetentionPolicy?: 'KEEP_7' | 'KEEP_30' | 'KEEP_90' | 'CUSTOM';
   backupRetentionDays?: number;
   lastBackupTime?: string;
   nextScheduledBackup?: string;
+  backupStorageLocation?: 'LOCAL_DISK' | 'CLOUD_VAULT';
 
   // System Information Metadata
   appVersion?: string;
@@ -445,4 +448,84 @@ export interface WhatsappQrSessionState {
   sessionKey?: string;
   qrExpiresAt?: string;
 }
+
+// Backup & Restore System Types
+export type BackupType =
+  | 'FULL'
+  | 'SETTINGS'
+  | 'SYSTEM_CONFIG'
+  | 'AUDIT_LOGS'
+  | 'EXPORT_FILES'
+  | 'FILE_STORAGE';
+
+export type BackupMethod = 'MANUAL' | 'SCHEDULED' | 'AUTOMATIC';
+
+export type BackupStatus = 'SUCCESS' | 'FAILED' | 'IN_PROGRESS' | 'RESTORED';
+
+export interface BackupRecord {
+  id: string;
+  name: string;
+  type: BackupType;
+  method: BackupMethod;
+  createdBy: string;
+  createdByRole: UserRole | 'SYSTEM';
+  createdAt: string;
+  sizeBytes: number;
+  sizeFormatted: string;
+  status: BackupStatus;
+  durationMs: number;
+  storageLocation: string;
+  recordCounts?: {
+    donors?: number;
+    bloodRequests?: number;
+    campaigns?: number;
+    adminUsers?: number;
+    auditLogs?: number;
+    donationHistories?: number;
+    settings?: boolean;
+    galleryImages?: number;
+    emergencyContacts?: number;
+  };
+  checksumMd5?: string;
+  appVersion?: string;
+  payloadJson?: string;
+  notes?: string;
+}
+
+export interface BackupIntegrityCheckResult {
+  backupId: string;
+  backupName: string;
+  isValid: boolean;
+  checksumMatch: boolean;
+  dbVersionCompatible: boolean;
+  appVersionCompatible: boolean;
+  recordCountValid: boolean;
+  totalRecordsChecked: number;
+  verifiedAt: string;
+  verifiedBy: string;
+  message: string;
+  details?: {
+    checksum: string;
+    appVersion: string;
+    targetVersion: string;
+    parsedCounts: Record<string, number>;
+  };
+}
+
+export interface BackupSummaryStats {
+  lastBackupTime?: string;
+  nextScheduledBackup?: string;
+  lastBackupStatus?: BackupStatus;
+  lastBackupSize?: string;
+  lastBackupType?: BackupType;
+  lastBackupDurationMs?: number;
+  storageLocation?: string;
+  totalBackupsCount: number;
+  totalStorageSizeBytes: number;
+  totalStorageFormatted: string;
+  autoBackupEnabled: boolean;
+  scheduleFrequency: string;
+  retentionPolicy: string;
+}
+
 

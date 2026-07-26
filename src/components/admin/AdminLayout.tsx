@@ -14,6 +14,7 @@ import { AuditLogViewer } from './AuditLogViewer.js';
 import { SystemSettings } from './SystemSettings.js';
 import { WhatsAppQrManager } from './WhatsAppQrManager.js';
 import { DataExportCenter } from './DataExportCenter.js';
+import { BackupRestoreManager } from './BackupRestoreManager.js';
 import { ForbiddenPage } from './ForbiddenPage.js';
 import { UserProfileModal } from './UserProfileModal.js';
 import { ChangePasswordModal } from './ChangePasswordModal.js';
@@ -30,6 +31,7 @@ import {
   ShieldAlert,
   Settings,
   Download,
+  Database,
   LogOut,
   ArrowLeft,
   HeartHandshake,
@@ -75,6 +77,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
         tabParam === 'audit'
       ) {
         return 'audit';
+      }
+      if (
+        pathname.includes('backup') ||
+        tabParam === 'backup' ||
+        tabParam === 'backup-restore'
+      ) {
+        return 'backup';
       }
     }
     return 'overview';
@@ -144,6 +153,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       requiredRoles: ['SUPER_ADMIN'],
     },
     {
+      id: 'backup',
+      label: 'ব্যাকআপ ও রিস্টোর',
+      icon: Database,
+      requiredRoles: ['SUPER_ADMIN'],
+    },
+    {
       id: 'export',
       label: 'ডাটা এক্সপোর্ট সেন্টার',
       icon: Download,
@@ -176,17 +191,21 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
         activeTab === 'settings' ||
         activeTab === 'telegram' ||
         activeTab === 'audit' ||
+        activeTab === 'backup' ||
         tabParam === 'settings' ||
         tabParam === 'telegram' ||
         tabParam === 'activity-logs' ||
         tabParam === 'audit' ||
+        tabParam === 'backup' ||
         pathname.includes('/settings') ||
         pathname.includes('/telegram') ||
         pathname.includes('/activity-logs') ||
         pathname.includes('/audit') ||
+        pathname.includes('/backup') ||
         hash.includes('settings') ||
         hash.includes('telegram') ||
-        hash.includes('activity-logs');
+        hash.includes('activity-logs') ||
+        hash.includes('backup');
 
       if (isRestrictedPath && currentUserRole !== 'SUPER_ADMIN') {
         setActiveTab('overview');
@@ -535,6 +554,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
               {activeTab === 'whatsapp-qr' && <WhatsAppQrManager />}
               {activeTab === 'users' && <UserManagement />}
               {activeTab === 'audit' && <AuditLogViewer />}
+              {activeTab === 'backup' && <BackupRestoreManager />}
               {activeTab === 'export' && <DataExportCenter />}
               {activeTab === 'settings' && <SystemSettings />}
             </>

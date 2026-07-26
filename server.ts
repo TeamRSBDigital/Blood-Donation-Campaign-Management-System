@@ -896,62 +896,231 @@ async function startServer() {
     });
   });
 
+  // ----------------------------------------------------
+  // BACKUP & RESTORE SYSTEM API ENDPOINTS
+  // ----------------------------------------------------
+
+  app.get('/api/backups', authMiddleware, superAdminOnly, (req, res) => {
+    const backups = dbService.getBackups();
+    const stats = dbService.getBackupSummaryStats();
+    res.json({ backups, stats });
+  });
+
+  app.post('/api/backups/create', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const { type = 'FULL', method = 'MANUAL', notes } = req.body;
+      const backup = dbService.createBackup({
+        type,
+        method,
+        createdBy: req.user.name,
+        createdByRole: req.user.role,
+        notes
+      });
+
+      dbService.addAuditLog(
+        req.user.name,
+        'SUPER_ADMIN',
+        'BACKUP_COMPLETED',
+        `সিস্টেম ব্যাকআপ ফাইল সফলভাবে তৈরি হয়েছে [ID: ${backup.id}, Type: ${backup.type}, Size: ${backup.sizeFormatted}]`
+      );
+
+      // Telegram notification
+      try {
+        notificationService.notify({
+          type: 'SECURITY_WARNING',
+          title: 'ডাটাবেজ ব্যাকআপ সম্পন্ন',
+          triggeredBy: req.user.name,
+          customMessage: `সুপার এডমিন ${req.user.name} নতুন ব্যাকআপ ফাইল তৈরি করেছেন: ${backup.name} (সাইজ: ${backup.sizeFormatted})`
+        });
+      } catch (err) {
+        console.error('Failed to dispatch backup notification to Telegram:', err);
+      }
+
+      res.status(201).json({
+        message: 'ব্যাকআপ সফলভাবে সম্পন্ন হয়েছে!',
+        backup,
+        stats: dbService.getBackupSummaryStats()
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'ব্যাকআপ তৈরিতে ত্রুটি ঘটেছে।' });
+    }
+  });
+
+  app.post('/api/backups/verify/:id', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const result = dbService.verifyBackupIntegrity(req.params.id, req.user.name);
+      res.json(result);
+    } catch (err: any) {
+      res.status(404).json({ error: err.message || 'ইনটিগ্রিটি চেক করতে ব্যর্থ হয়েছে।' });
+    }
+  });
+
+  app.get('/api/backups/download/:id', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const backup = dbService.getBackupById(req.params.id);
+      if (!backup) {
+        return res.status(404).json({ error: 'ব্যাকআপ ফাইল পাওয়া যায়নি।' });
+      }
+
+      const payload = backup.payloadJson || JSON.stringify(backup, null, 2);
+      const filename = `PBDA_Backup_${backup.type}_${backup.id}.json`;
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+      dbService.addAuditLog(
+        req.user.name,
+        'SUPER_ADMIN',
+        'BACKUP_DOWNLOADED',
+        `ব্যাকআপ ফাইল ডাউনলোড করা হয়েছে [ID: ${backup.id}, Name: ${backup.name}]`
+      );
+
+      res.send(payload);
+    } catch (err: any) {
+      res.status(500).json({ error: 'ব্যাকআপ ফাইল ডাউনলোডে ত্রুটি ঘটেছে।' });
+    }
+  });
+
+  app.post('/api/backups/restore/:id', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const { confirmationText } = req.body;
+
+      if (confirmationText !== 'RESTORE') {
+        return res.status(400).json({ error: 'রিস্টোর নিশ্চিত করতে "RESTORE" শব্দটি টাইপ করুন।' });
+      }
+
+      const result = dbService.restoreBackup(req.params.id, req.user.name, req.user.role);
+
+      // Send alert notification
+      try {
+        notificationService.notify({
+          type: 'SECURITY_WARNING',
+          title: '🚨 ডাটাবেজ রিস্টোর সম্পন্ন',
+          triggeredBy: req.user.name,
+          customMessage: `সতর্কতা: সুপার এডমিন ${req.user.name} সিস্টেমে স্ন্যাপশট ফাইল থেকে ডাটাবেজ রিস্টোর করেছেন!`
+        });
+      } catch (e) {
+        console.error('Failed to notify database restore:', e);
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'ডাটাবেজ রিস্টোর প্রক্রিয়ায় ত্রুটি ঘটেছে।' });
+    }
+  });
+
+  app.post('/api/backups/restore/upload', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const { confirmationText, backupPayload } = req.body;
+
+      if (confirmationText !== 'RESTORE') {
+        return res.status(400).json({ error: 'রিস্টোর নিশ্চিত করতে "RESTORE" শব্দটি টাইপ করুন।' });
+      }
+
+      if (!backupPayload) {
+        return res.status(400).json({ error: 'রিস্টোর করার জন্য ব্যাকআপ ফাইল আপলোড করা আবশ্যক।' });
+      }
+
+      const result = dbService.restoreBackup(backupPayload, req.user.name, req.user.role);
+
+      // Notification
+      try {
+        notificationService.notify({
+          type: 'SECURITY_WARNING',
+          title: '🚨 ফাইল আপলোড থেকে ডাটাবেজ রিস্টোর',
+          triggeredBy: req.user.name,
+          customMessage: `সুপার এডমিন ${req.user.name} আপলোডকৃত ব্যাকআপ ফাইল থেকে ডাটাবেজ রিস্টোর সম্পন্ন করেছেন!`
+        });
+      } catch (e) {
+        console.error('Failed to notify database upload restore:', e);
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'আপলোড ফাইল থেকে রিস্টোরে ত্রুটি।' });
+    }
+  });
+
+  app.delete('/api/backups/:id', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const success = dbService.deleteBackup(req.params.id, req.user.name);
+      if (!success) {
+        return res.status(404).json({ error: 'ব্যাকআপ ফাইলটি পাওয়া যায়নি বা ইতিপূর্বে ডিলিট করা হয়েছে।' });
+      }
+      res.json({ message: 'ব্যাকআপ ফাইল সফলভাবে ডিলিট করা হয়েছে!', stats: dbService.getBackupSummaryStats() });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'ব্যাকআপ ফাইল ডিলিটে ত্রুটি।' });
+    }
+  });
+
+  app.put('/api/backups/settings', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const {
+        enableAutoBackup,
+        backupSchedule,
+        backupRetentionPolicy,
+        customRetentionDays,
+        backupStorageLocation,
+        customScheduleCron
+      } = req.body;
+
+      const updatedSettings = dbService.updateSettings(
+        {
+          enableAutoBackup: enableAutoBackup !== undefined ? Boolean(enableAutoBackup) : undefined,
+          backupSchedule,
+          backupRetentionPolicy,
+          backupRetentionDays: customRetentionDays ? Number(customRetentionDays) : undefined,
+          backupStorageLocation,
+          customScheduleCron
+        },
+        req.user.name
+      );
+
+      // Clean up excess backups based on new retention policy
+      dbService.runBackupRetentionCleanup();
+
+      dbService.addAuditLog(
+        req.user.name,
+        'SUPER_ADMIN',
+        'BACKUP_SETTINGS_UPDATED',
+        `ব্যাকআপ সিডিউল ও রিটেনশন পলিসি সেটিংস পরিবর্তন করা হয়েছে`
+      );
+
+      res.json({
+        message: 'ব্যাকআপ সেটিংস সফলভাবে হালনাগাদ করা হয়েছে!',
+        settings: updatedSettings,
+        stats: dbService.getBackupSummaryStats()
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'ব্যাকআপ সেটিংস আপডেটে ত্রুটি।' });
+    }
+  });
+
+  // Legacy route aliases for backward compatibility
   app.post('/api/settings/backup', authMiddleware, superAdminOnly, (req: any, res: any) => {
-    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
-    const now = new Date().toISOString();
-
-    // Update last backup time in settings
-    dbService.updateSettings({
-      lastBackupTime: now,
-      nextScheduledBackup: new Date(Date.now() + 24 * 3600 * 1000).toISOString()
-    }, req.user.name, String(ipAddress));
-
-    dbService.addAuditLog(
-      req.user.name,
-      'SUPER_ADMIN',
-      'MANUAL_DATABASE_BACKUP',
-      `সিস্টেম ম্যানুয়াল ডাটাবেজ ব্যাকআপ নেওয়া হয়েছে [IP: ${ipAddress}, Time: ${now}]`
-    );
-
-    const fullData = {
-      backupTimestamp: now,
-      createdByName: req.user.name,
+    const backup = dbService.createBackup({
+      type: 'FULL',
+      method: 'MANUAL',
+      createdBy: req.user.name,
       createdByRole: req.user.role,
-      settings: dbService.getSettings(),
-      donorsCount: dbService.getDonors({ showTrash: false }).length,
-      bloodRequestsCount: dbService.getBloodRequests(false).length,
-      auditLogsCount: dbService.getAuditLogs().length,
-      systemVersion: 'v2.4.0 (PBDA Enterprise)'
-    };
-
+      notes: 'ম্যানুয়াল ডাটাবেজ ব্যাকআপ'
+    });
     res.json({
       success: true,
       message: 'ডাটাবেজ ব্যাকআপ স্ন্যাপশট সফলভাবে তৈরি হয়েছে!',
-      backupTimestamp: now,
-      filename: `pbda-system-backup-${now.split('T')[0]}.json`,
-      backupData: fullData
+      backupTimestamp: backup.createdAt,
+      filename: `pbda-system-backup-${backup.id}.json`,
+      backupData: backup
     });
   });
 
   app.post('/api/settings/restore', authMiddleware, superAdminOnly, (req: any, res: any) => {
-    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
     const { backupData } = req.body;
-
     if (!backupData) {
       return res.status(400).json({ error: 'রিস্টোর করার জন্য ব্যাকআপ ডাটা ফাইল প্রয়োজন।' });
     }
-
-    dbService.addAuditLog(
-      req.user.name,
-      'SUPER_ADMIN',
-      'DATABASE_RESTORE',
-      `সিস্টেম ব্যাকআপ স্ন্যাপশট রিস্টোর প্রসেস সম্পন্ন করা হয়েছে [IP: ${ipAddress}]`
-    );
-
-    res.json({
-      success: true,
-      message: 'ডাটাবেজ এবং সেটিংস ব্যাকআপ সফলভাবে রিস্টোর হয়েছে!'
-    });
+    const result = dbService.restoreBackup(backupData, req.user.name, req.user.role);
+    res.json(result);
   });
 
   // ----------------------------------------------------
