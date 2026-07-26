@@ -528,4 +528,88 @@ export interface BackupSummaryStats {
   retentionPolicy: string;
 }
 
+// ----------------------------------------------------
+// SCHEDULER & AUTOMATION ENGINE TYPES
+// ----------------------------------------------------
+
+export type JobType =
+  | 'TELEGRAM_RETRY'
+  | 'CRITICAL_REMINDER'
+  | 'REQUEST_EXPIRATION'
+  | 'INACTIVE_DONOR_REMINDER'
+  | 'AUTO_BACKUP'
+  | 'LOG_CLEANUP'
+  | 'SESSION_CLEANUP'
+  | 'QUEUE_PROCESSING'
+  | 'EMAIL_NOTIFICATION'
+  | 'SMS_NOTIFICATION'
+  | 'PUSH_NOTIFICATION';
+
+export type JobScheduleFrequency =
+  | 'EVERY_MINUTE'
+  | 'EVERY_5_MINS'
+  | 'EVERY_15_MINS'
+  | 'HOURLY'
+  | 'DAILY'
+  | 'WEEKLY'
+  | 'MONTHLY'
+  | 'CUSTOM_CRON';
+
+export type JobStatus =
+  | 'PENDING'
+  | 'RUNNING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'PAUSED'
+  | 'DISABLED';
+
+export interface AutomationJob {
+  id: string;
+  name: string;
+  type: JobType;
+  description: string;
+  frequency: JobScheduleFrequency;
+  cronExpression?: string;
+  status: JobStatus;
+  lastRun?: string;
+  nextRun?: string;
+  durationMs?: number;
+  retryCount: number;
+  maxRetries: number;
+  exponentialBackoff: boolean;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
+  isBuiltIn?: boolean;
+  config?: Record<string, any>;
+}
+
+export interface JobExecutionLog {
+  id: string;
+  jobId: string;
+  jobName: string;
+  jobType: JobType;
+  status: 'SUCCESS' | 'FAILED' | 'RETRYING' | 'RUNNING';
+  startedAt: string;
+  completedAt?: string;
+  durationMs: number;
+  details?: string;
+  error?: string;
+  retryAttempt?: number;
+}
+
+export interface AutomationDashboardStats {
+  totalJobs: number;
+  runningJobs: number;
+  completedJobs: number;
+  failedJobs: number;
+  upcomingJobs: number;
+  lastExecution?: string;
+  nextExecution?: string;
+  averageExecutionTimeMs: number;
+  successRatePercent: number;
+  failureRatePercent: number;
+}
+
+
 

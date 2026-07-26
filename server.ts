@@ -1771,6 +1771,72 @@ async function startServer() {
   });
 
   // ----------------------------------------------------
+  // AUTOMATION & SCHEDULER ENGINE API ENDPOINTS
+  // ----------------------------------------------------
+
+  // Get all automation jobs and stats
+  app.get('/api/automation/jobs', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const jobs = dbService.getAutomationJobs();
+    const stats = dbService.getAutomationDashboardStats();
+    res.json({ jobs, stats });
+  });
+
+  // Get job execution logs
+  app.get('/api/automation/logs', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const jobId = req.query.jobId as string;
+    const logs = dbService.getJobExecutionLogs(jobId);
+    const stats = dbService.getAutomationDashboardStats();
+    res.json({ logs, stats });
+  });
+
+  // Create new automation job
+  app.post('/api/automation/jobs', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const newJob = dbService.createAutomationJob(req.body, req.user.name);
+    res.status(201).json(newJob);
+  });
+
+  // Update automation job
+  app.put('/api/automation/jobs/:id', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const updated = dbService.updateAutomationJob(req.params.id, req.body, req.user.name);
+    if (!updated) return res.status(404).json({ error: 'জব পাওয়া যায়নি' });
+    res.json(updated);
+  });
+
+  // Run job now ("Run Now")
+  app.post('/api/automation/jobs/:id/run', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const result = dbService.runAutomationJob(req.params.id, 'MANUAL', req.user.name);
+    res.json(result);
+  });
+
+  // Pause job
+  app.post('/api/automation/jobs/:id/pause', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const paused = dbService.pauseAutomationJob(req.params.id, req.user.name);
+    if (!paused) return res.status(404).json({ error: 'জব পাওয়া যায়নি' });
+    res.json(paused);
+  });
+
+  // Resume job
+  app.post('/api/automation/jobs/:id/resume', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const resumed = dbService.resumeAutomationJob(req.params.id, req.user.name);
+    if (!resumed) return res.status(404).json({ error: 'জব পাওয়া যায়নি' });
+    res.json(resumed);
+  });
+
+  // Duplicate job
+  app.post('/api/automation/jobs/:id/duplicate', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const duplicated = dbService.duplicateAutomationJob(req.params.id, req.user.name);
+    if (!duplicated) return res.status(404).json({ error: 'জব পাওয়া যায়নি' });
+    res.json(duplicated);
+  });
+
+  // Delete job
+  app.delete('/api/automation/jobs/:id', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const deleted = dbService.deleteAutomationJob(req.params.id, req.user.name);
+    if (!deleted) return res.status(404).json({ error: 'জব ডিলিট করা যায়নি' });
+    res.json({ success: true, message: 'জবটি সফলভাবে ডিলিট করা হয়েছে' });
+  });
+
+  // ----------------------------------------------------
   // VITE & STATIC FILES SERVING
   // ----------------------------------------------------
   if (process.env.NODE_ENV !== 'production') {
@@ -1795,6 +1861,25 @@ async function startServer() {
       notificationService.triggerCriticalReminders(`http://localhost:${PORT}`)
         .catch(err => console.error('[CRITICAL REMINDER SCHEDULER ERROR]', err));
     }, 5 * 60 * 1000);
+
+    // Automation & Scheduler Worker Engine Ticker (Runs every 30 seconds)
+    setInterval(() => {
+      try {
+        const jobs = dbService.getAutomationJobs();
+        const now = new Date();
+        jobs.forEach(job => {
+          if (
+            (job.status === 'PENDING' || job.status === 'COMPLETED') &&
+            job.nextRun &&
+            new Date(job.nextRun) <= now
+          ) {
+            dbService.runAutomationJob(job.id, 'SCHEDULED', 'Scheduler Worker Engine');
+          }
+        });
+      } catch (err) {
+        console.error('[AUTOMATION SCHEDULER ENGINE TICK ERROR]', err);
+      }
+    }, 30 * 1000);
   });
 }
 

@@ -25,6 +25,14 @@ const AppContent: React.FC = () => {
       const pathname = window.location.pathname;
       const searchParams = new URLSearchParams(window.location.search);
       if (
+        pathname.includes('/dashboard') ||
+        pathname.includes('/admin') ||
+        pathname.includes('/automation') ||
+        pathname.includes('/backup')
+      ) {
+        return 'admin';
+      }
+      if (
         pathname.includes('/request-blood') ||
         pathname.includes('/request_blood')
       ) {

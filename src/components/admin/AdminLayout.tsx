@@ -15,6 +15,7 @@ import { SystemSettings } from './SystemSettings.js';
 import { WhatsAppQrManager } from './WhatsAppQrManager.js';
 import { DataExportCenter } from './DataExportCenter.js';
 import { BackupRestoreManager } from './BackupRestoreManager.js';
+import { AutomationManager } from './AutomationManager.js';
 import { ForbiddenPage } from './ForbiddenPage.js';
 import { UserProfileModal } from './UserProfileModal.js';
 import { ChangePasswordModal } from './ChangePasswordModal.js';
@@ -32,6 +33,7 @@ import {
   Settings,
   Download,
   Database,
+  Cpu,
   LogOut,
   ArrowLeft,
   HeartHandshake,
@@ -159,6 +161,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       requiredRoles: ['SUPER_ADMIN'],
     },
     {
+      id: 'automation',
+      label: 'অটোমেশন ও সিডিউলার',
+      icon: Cpu,
+      requiredRoles: ['SUPER_ADMIN'],
+    },
+    {
       id: 'export',
       label: 'ডাটা এক্সপোর্ট সেন্টার',
       icon: Download,
@@ -192,20 +200,24 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
         activeTab === 'telegram' ||
         activeTab === 'audit' ||
         activeTab === 'backup' ||
+        activeTab === 'automation' ||
         tabParam === 'settings' ||
         tabParam === 'telegram' ||
         tabParam === 'activity-logs' ||
         tabParam === 'audit' ||
         tabParam === 'backup' ||
+        tabParam === 'automation' ||
         pathname.includes('/settings') ||
         pathname.includes('/telegram') ||
         pathname.includes('/activity-logs') ||
         pathname.includes('/audit') ||
         pathname.includes('/backup') ||
+        pathname.includes('/automation') ||
         hash.includes('settings') ||
         hash.includes('telegram') ||
         hash.includes('activity-logs') ||
-        hash.includes('backup');
+        hash.includes('backup') ||
+        hash.includes('automation');
 
       if (isRestrictedPath && currentUserRole !== 'SUPER_ADMIN') {
         setActiveTab('overview');
@@ -555,6 +567,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
               {activeTab === 'users' && <UserManagement />}
               {activeTab === 'audit' && <AuditLogViewer />}
               {activeTab === 'backup' && <BackupRestoreManager />}
+              {activeTab === 'automation' && <AutomationManager />}
               {activeTab === 'export' && <DataExportCenter />}
               {activeTab === 'settings' && <SystemSettings />}
             </>
