@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { LanguageProvider, useLanguage } from './context/LanguageContext.js';
+import React, { useState, lazy, Suspense } from 'react';
+import { LanguageProvider } from './context/LanguageContext.js';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { ThemeProvider } from './context/ThemeContext.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 
 import { Header } from './components/Header.js';
 import { Footer } from './components/Footer.js';
@@ -14,9 +15,11 @@ import { CampaignsSection } from './components/CampaignsSection.js';
 import { BecomeDonorSection } from './components/BecomeDonorSection.js';
 import { EmergencyDirectory } from './components/EmergencyDirectory.js';
 import { AdminLoginModal } from './components/AdminLoginModal.js';
-import { AdminLayout } from './components/admin/AdminLayout.js';
-
 import { BloodGroup } from './types/index.js';
+import { Loader2 } from 'lucide-react';
+
+// Lazy load admin module for optimized initial bundle size
+const AdminLayout = lazy(() => import('./components/admin/AdminLayout.js').then(module => ({ default: module.AdminLayout })));
 
 const AppContent: React.FC = () => {
   const { user } = useAuth();
@@ -73,7 +76,18 @@ const AppContent: React.FC = () => {
 
   // If in admin view mode and authenticated
   if (activeTab === 'admin' && user) {
-    return <AdminLayout onBackToPublicSite={() => setActiveTab('home')} />;
+    return (
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-10 h-10 text-rose-500 animate-spin" />
+            <p className="text-xs font-bold text-slate-400">এডমিন ড্যাশবোর্ড লোড হচ্ছে...</p>
+          </div>
+        }
+      >
+        <AdminLayout onBackToPublicSite={() => setActiveTab('home')} />
+      </Suspense>
+    );
   }
 
   return (
@@ -153,13 +167,15 @@ const AppContent: React.FC = () => {
 
 export function App() {
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

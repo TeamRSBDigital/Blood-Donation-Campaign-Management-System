@@ -58,6 +58,8 @@ export interface Donor {
   age: number; // Auto calculated or provided
   weightKg?: number;
   occupation?: string;
+  fatherOrSpouseName?: string;
+  nidOrBirthCert?: string;
   division?: string;
   district: string;
   upazila: string;
@@ -732,6 +734,8 @@ export interface SystemHealthReport {
   alerts: HealthAlert[];
   recentErrors: Array<{ id: string; timestamp: string; message: string; source: string; details?: string }>;
 }
+
+export * from './communication.js';
 
 
 

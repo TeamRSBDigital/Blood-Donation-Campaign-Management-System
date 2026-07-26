@@ -27,6 +27,8 @@ interface HeaderProps {
   onOpenAdminLogin?: () => void;
   onOpenLoginModal?: () => void;
   onOpenPublicRequestModal?: () => void;
+  onOpenDonorRegisterModal?: () => void;
+  onOpenRequestModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,7 +37,8 @@ export const Header: React.FC<HeaderProps> = ({
   onTabChange,
   onOpenAdminLogin,
   onOpenLoginModal,
-  onOpenPublicRequestModal
+  onOpenPublicRequestModal,
+  onOpenRequestModal
 }) => {
   const handleTabClick = (tab: string) => {
     if (setActiveTab) setActiveTab(tab);
@@ -82,9 +85,9 @@ export const Header: React.FC<HeaderProps> = ({
               <Phone className="w-3 h-3 fill-current" />
               <span>২৪/৭ হেল্পলাইন: 01812999888</span>
             </a>
-            {onOpenPublicRequestModal && (
+            {(onOpenPublicRequestModal || onOpenRequestModal) && (
               <button
-                onClick={onOpenPublicRequestModal}
+                onClick={onOpenPublicRequestModal || onOpenRequestModal}
                 className="hidden md:inline-flex items-center gap-1 bg-amber-400 text-slate-900 font-bold px-2.5 py-0.5 rounded-full text-xs hover:bg-amber-300 transition-colors shadow-xs"
               >
                 <AlertTriangle className="w-3 h-3" />
@@ -200,6 +203,9 @@ export const Header: React.FC<HeaderProps> = ({
             {language === 'bn' ? 'EN' : 'বাং'}
           </button>
           <button
+            id="mobile-menu-toggle-btn"
+            aria-label="নেভিগেশন মেনু খুলুন বা বন্ধ করুন"
+            aria-expanded={mobileMenuOpen}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
@@ -210,7 +216,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4 space-y-3 shadow-xl">
+        <div id="mobile-navigation-drawer" className="lg:hidden border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4 space-y-3 shadow-xl">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (

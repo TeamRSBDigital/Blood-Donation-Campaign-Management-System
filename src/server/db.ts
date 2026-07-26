@@ -15,6 +15,8 @@ import {
   EmergencyContact,
   DonationHistory,
   AvailabilityStatus,
+  DonorVerificationStatus,
+  TempUnavailableReason,
   Notification,
   TelegramNotificationLog,
   TelegramDeliveryStats,
@@ -41,7 +43,16 @@ import {
   SystemResourceMetrics,
   HealthAlert,
   SystemHealthStatus,
-  ServicesHealth
+  ServicesHealth,
+  BroadcastCampaign,
+  MessageTemplate,
+  BroadcastTargetFilter,
+  RecipientCalculationResult,
+  BroadcastRecipientStatus,
+  BroadcastType,
+  BroadcastPriority,
+  BroadcastChannel,
+  BroadcastStatus
 } from '../types/index.js';
 
 
@@ -65,6 +76,8 @@ interface DatabaseSchema {
   backups: BackupRecord[];
   automationJobs?: AutomationJob[];
   jobExecutionLogs?: JobExecutionLog[];
+  broadcastCampaigns?: BroadcastCampaign[];
+  messageTemplates?: MessageTemplate[];
 }
 
 // Initial Admin Passwords (Hashed during seed initialization if string matches raw)
@@ -1033,7 +1046,70 @@ const SEED_DATA: DatabaseSchema = {
       isBuiltIn: true
     }
   ],
-  jobExecutionLogs: []
+  jobExecutionLogs: [],
+  broadcastCampaigns: [],
+  messageTemplates: [
+    {
+      id: 'tmpl-1',
+      name: 'জরুরী রক্তের প্রয়োজন (Emergency Blood)',
+      category: 'EMERGENCY',
+      subject: 'জরুরী {blood_group} রক্তের প্রয়োজন - পাংশা ব্লাড ডোনার্স',
+      body: 'জরুরী {blood_group} রক্ত প্রয়োজন!\nরোগীর নাম/আইডি: {patient_name}\nহাসপাতাল: {hospital_name}, {district}\nযোগাযোগ: {contact_phone}\n\nআপনার কাছে রক্তদান করা সম্ভব হলে অবিলম্বে যোগাযোগ করুন। রক্ত দিন, জীবন বাঁচান!',
+      defaultPriority: 'CRITICAL',
+      defaultChannels: ['TELEGRAM_GROUP', 'WHATSAPP_CLOUD', 'DASHBOARD_NOTIFICATION'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: 'সিস্টেম এডমিন'
+    },
+    {
+      id: 'tmpl-2',
+      name: 'ধন্যবাদ ডোনার (Thank You Donor)',
+      category: 'THANK_YOU',
+      subject: 'রক্তদানের জন্য অসংখ্য ধন্যবাদ - PBDA',
+      body: 'প্রিয় {donor_name},\nআপনার মহান রক্তদানের উদ্যোগের জন্য রাজবাড়ী ব্লাড ডোনার্স এসোসিয়েশনের পক্ষ থেকে জানাই আন্তরিক ধন্যবাদ ও কৃতজ্ঞতা। আপনার এক ব্যাগ রক্ত বাঁচিয়ে দিলো একটি অমূল্য প্রাণ। শুভকামনা নিরন্তর!',
+      defaultPriority: 'MEDIUM',
+      defaultChannels: ['WHATSAPP_CLOUD', 'DASHBOARD_NOTIFICATION'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: 'সিস্টেম এডমিন'
+    },
+    {
+      id: 'tmpl-3',
+      name: 'ক্যাম্পেইন ঘোষণা (Campaign Announcement)',
+      category: 'ANNOUNCEMENT',
+      subject: 'ফ্রি ব্লাড গ্রুপিং ও রক্তদান ক্যাম্পেইন',
+      body: 'প্রিয় সদস্য ও শুভানুধ্যায়ী,\nরাজবাড়ী ব্লাড ডোনার্স এসোসিয়েশনের উদ্যোগে আগামী {date} তারিখে {venue} এ এক বিশাল ফ্রি রক্তদান ও গ্রুপিং ক্যাম্পেইনের আয়োজন করা হয়েছে। আপনাদের সকলের সক্রিয় উপস্থিতি ও সহযোগিতা কাম্য।',
+      defaultPriority: 'HIGH',
+      defaultChannels: ['TELEGRAM_GROUP', 'WHATSAPP_CLOUD', 'DASHBOARD_NOTIFICATION'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: 'সিস্টেম এডমিন'
+    },
+    {
+      id: 'tmpl-4',
+      name: 'ভলান্টিয়ার মিটিং (Volunteer Meeting)',
+      category: 'MEETING',
+      subject: 'জরুরী ভলান্টিয়ার সমন্বয় সভা',
+      body: 'সকল সম্মানিত ভলান্টিয়ারদের অবগতির জন্য জানানো যাচ্ছে যে, আজ রাত {time} ঘটিকায় একটি ভার্চুয়াল জরুরি সভা অনুষ্ঠিত হবে। লিঃ {meeting_link}। আপনার উপস্থিতি বাধ্যতামুলক।',
+      defaultPriority: 'HIGH',
+      defaultChannels: ['TELEGRAM_GROUP', 'DASHBOARD_NOTIFICATION'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: 'সিস্টেম এডমিন'
+    },
+    {
+      id: 'tmpl-5',
+      name: 'মেডিকেল সেমিনার ও ওয়ার্কশপ',
+      category: 'DONATION_CAMP',
+      subject: 'নিরাপদ রক্তদান সংক্রান্ত সচেতনতা সেমিনার',
+      body: 'আসন্ন নিরাপদ রক্তদান সেমিনারে অংশগ্রহণ করতে আগামী {date} তারিখের মধ্যে রেজিস্ট্রেশন সম্পন্ন করুন। ধন্যবাদ, রাজবাড়ী ব্লাড ডোনার্স এসোসিয়েশন।',
+      defaultPriority: 'LOW',
+      defaultChannels: ['DASHBOARD_NOTIFICATION'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: 'সিস্টেম এডমিন'
+    }
+  ]
 };
 
 // Database state in memory, synced to disk
@@ -1049,6 +1125,8 @@ function loadDatabase(): DatabaseSchema {
       loaded.backups = loaded.backups || [];
       loaded.automationJobs = loaded.automationJobs && loaded.automationJobs.length > 0 ? loaded.automationJobs : SEED_DATA.automationJobs;
       loaded.jobExecutionLogs = loaded.jobExecutionLogs || [];
+      loaded.broadcastCampaigns = loaded.broadcastCampaigns || [];
+      loaded.messageTemplates = loaded.messageTemplates && loaded.messageTemplates.length > 0 ? loaded.messageTemplates : SEED_DATA.messageTemplates;
       return loaded;
     }
   } catch (err) {
@@ -1887,6 +1965,13 @@ export const dbService = {
 
     if ((actorId && targetUser.id === actorId) || (actorEmail && targetUser.email.toLowerCase() === actorEmail.toLowerCase())) {
       throw new Error('আপনি নিজের ভূমিকা (Role) পরিবর্তন করতে পারবেন না।');
+    }
+
+    if (targetUser.role === 'SUPER_ADMIN' && newRole !== 'SUPER_ADMIN') {
+      const activeSuperAdmins = db.adminUsers.filter(u => !u.isDeleted && u.active && u.role === 'SUPER_ADMIN');
+      if (activeSuperAdmins.length <= 1) {
+        throw new Error('সর্বশেষ সক্রিয় সুপার এডমিন অ্যাকাউন্ট ডাউনগ্রেড করা সম্ভব নয়।');
+      }
     }
 
     const oldRole = targetUser.role;
@@ -3537,9 +3622,395 @@ export const dbService = {
       activeJobsCount: activeJobs,
       details: `সিডিউলার ইঞ্জিন টিকেল ওয়ার্কার রান করছে। সক্রিয় জবস: ${activeJobs}`
     };
+  },
+
+  // ==========================================
+  // COMMUNICATION & SMART BROADCAST SYSTEM
+  // ==========================================
+
+  calculateTargetRecipients(filter: BroadcastTargetFilter): RecipientCalculationResult {
+    let donors = (db.donors || []).filter(d => !d.isDeleted);
+    let users = (db.adminUsers || []).filter(u => !u.isDeleted && u.status === 'ACTIVE');
+
+    // 1. Blood Group Filter
+    if (filter.bloodGroups && filter.bloodGroups.length > 0) {
+      donors = donors.filter(d => filter.bloodGroups!.includes(d.bloodGroup));
+    }
+
+    // 2. Location Filters
+    if (filter.district && filter.district !== 'ALL') {
+      donors = donors.filter(d => d.district === filter.district);
+    }
+    if (filter.upazila && filter.upazila !== 'ALL') {
+      donors = donors.filter(d => d.upazila === filter.upazila);
+    }
+    if (filter.union && filter.union !== 'ALL') {
+      donors = donors.filter(d => d.union === filter.union);
+    }
+
+    // 3. Availability & Eligibility
+    if (filter.availabilityStatus && filter.availabilityStatus.length > 0) {
+      donors = donors.filter(d => {
+        const elig = calculateDonorEligibility(d, db.settings);
+        return filter.availabilityStatus!.includes(elig.status);
+      });
+    }
+
+    if (filter.eligibilityFilter && filter.eligibilityFilter !== 'ALL') {
+      donors = donors.filter(d => {
+        const elig = calculateDonorEligibility(d, db.settings);
+        if (filter.eligibilityFilter === 'ELIGIBLE_NOW') return elig.isEligible;
+        if (filter.eligibilityFilter === 'ELIGIBLE_THIS_WEEK') return elig.daysRemaining <= 7;
+        if (filter.eligibilityFilter === 'IN_COOLDOWN') return elig.daysRemaining > 0;
+        return true;
+      });
+    }
+
+    // 4. Verification Status
+    if (filter.verificationStatus && filter.verificationStatus.length > 0) {
+      donors = donors.filter(d => {
+        const vStatus = d.verificationStatus || (d.isVerified ? 'VERIFIED' : 'PENDING');
+        return filter.verificationStatus!.includes(vStatus);
+      });
+    }
+
+    // 5. Gender
+    if (filter.gender && filter.gender.length > 0) {
+      donors = donors.filter(d => filter.gender!.includes(d.gender || 'MALE'));
+    }
+
+    // 6. Donations Count Range
+    if (filter.minDonations !== undefined) {
+      donors = donors.filter(d => (d.totalDonations || 0) >= filter.minDonations!);
+    }
+    if (filter.maxDonations !== undefined) {
+      donors = donors.filter(d => (d.totalDonations || 0) <= filter.maxDonations!);
+    }
+
+    // 7. Individual Donor Selection
+    if (filter.individualDonorIds && filter.individualDonorIds.length > 0) {
+      donors = donors.filter(d => filter.individualDonorIds!.includes(d.id));
+    }
+
+    // 8. Target Roles (Admin / Volunteers)
+    if (filter.targetRoles && filter.targetRoles.length > 0) {
+      users = users.filter(u => filter.targetRoles!.includes(u.role));
+    } else {
+      users = []; // No user roles explicitly selected
+    }
+
+    // Compute Breakdowns
+    const breakdownByBloodGroup: Record<string, number> = {};
+    const breakdownByDistrict: Record<string, number> = {};
+    const breakdownByAvailability: Record<string, number> = {};
+    const breakdownByVerification: Record<string, number> = {};
+
+    donors.forEach(d => {
+      breakdownByBloodGroup[d.bloodGroup] = (breakdownByBloodGroup[d.bloodGroup] || 0) + 1;
+      const dist = d.district || 'Unassigned';
+      breakdownByDistrict[dist] = (breakdownByDistrict[dist] || 0) + 1;
+
+      const elig = calculateDonorEligibility(d, db.settings);
+      breakdownByAvailability[elig.status] = (breakdownByAvailability[elig.status] || 0) + 1;
+
+      const vStatus = d.verificationStatus || (d.isVerified ? 'VERIFIED' : 'PENDING');
+      breakdownByVerification[vStatus] = (breakdownByVerification[vStatus] || 0) + 1;
+    });
+
+    const matchingSample = donors.slice(0, 10).map(d => ({
+      id: d.id,
+      name: d.name,
+      bloodGroup: d.bloodGroup,
+      phone: d.phone,
+      district: d.district || '',
+      upazila: d.upazila || ''
+    }));
+
+    return {
+      totalMatchingDonors: donors.length,
+      totalMatchingUsers: users.length,
+      totalUniqueRecipients: donors.length + users.length,
+      breakdownByBloodGroup,
+      breakdownByDistrict,
+      breakdownByAvailability,
+      breakdownByVerification,
+      matchingSample
+    };
+  },
+
+  getBroadcastCampaigns(filters?: { status?: string; type?: string; searchQuery?: string }): BroadcastCampaign[] {
+    let list = [...(db.broadcastCampaigns || [])];
+
+    if (filters?.status && filters.status !== 'ALL') {
+      list = list.filter(c => c.status === filters.status);
+    }
+    if (filters?.type && filters.type !== 'ALL') {
+      list = list.filter(c => c.type === filters.type);
+    }
+    if (filters?.searchQuery) {
+      const q = filters.searchQuery.toLowerCase();
+      list = list.filter(c => c.title.toLowerCase().includes(q) || c.message.toLowerCase().includes(q));
+    }
+
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  getBroadcastCampaignById(id: string): BroadcastCampaign | undefined {
+    return (db.broadcastCampaigns || []).find(c => c.id === id);
+  },
+
+  createBroadcastCampaign(
+    campaignData: Omit<BroadcastCampaign, 'id' | 'createdAt' | 'updatedAt' | 'deliveredCount' | 'failedCount' | 'pendingCount' | 'skippedCount'>,
+    actorName: string,
+    actorRole: UserRole
+  ): BroadcastCampaign {
+    if (!db.broadcastCampaigns) db.broadcastCampaigns = [];
+
+    const recResult = this.calculateTargetRecipients(campaignData.targetFilter);
+    const newId = `brd-${Date.now().toString().slice(-6)}`;
+    const nowIso = new Date().toISOString();
+
+    const campaign: BroadcastCampaign = {
+      ...campaignData,
+      id: newId,
+      estimatedRecipientsCount: recResult.totalUniqueRecipients,
+      deliveredCount: 0,
+      failedCount: 0,
+      pendingCount: campaignData.status === 'SCHEDULED' || campaignData.status === 'SENDING' ? recResult.totalUniqueRecipients : 0,
+      skippedCount: 0,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      createdBy: actorName,
+      creatorRole: actorRole
+    };
+
+    db.broadcastCampaigns.unshift(campaign);
+    saveDatabase();
+
+    this.addAuditLog(
+      actorName,
+      actorRole,
+      'BROADCAST_CREATED' as any,
+      `নতুন ব্রডকাস্ট মেসেজ তৈরি করা হয়েছে: ${campaign.title} [টাইপ: ${campaign.type}, ইমার্জেন্সি: ${campaign.isEmergency ? 'হ্যাঁ' : 'না'}, চ্যানেল: ${campaign.channels.join(', ')}]`
+    );
+
+    // If Emergency or Send Immediately requested
+    if (campaign.isEmergency || campaignData.status === 'SENDING') {
+      this.sendBroadcastCampaignNow(newId, actorName, actorRole);
+    }
+
+    return (this.getBroadcastCampaignById(newId) || campaign);
+  },
+
+  sendBroadcastCampaignNow(id: string, actorName: string, actorRole: UserRole): { success: boolean; campaign?: BroadcastCampaign; error?: string } {
+    if (!db.broadcastCampaigns) db.broadcastCampaigns = [];
+    const index = db.broadcastCampaigns.findIndex(c => c.id === id);
+    if (index === -1) return { success: false, error: 'ব্রডকাস্ট ক্যাম্পেইন পাওয়া যায়নি' };
+
+    const c = db.broadcastCampaigns[index];
+    c.status = 'SENDING';
+    c.updatedAt = new Date().toISOString();
+
+    const recResult = this.calculateTargetRecipients(c.targetFilter);
+    const donors = (db.donors || []).filter(d => !d.isDeleted);
+    const matchedDonors = donors.slice(0, recResult.totalMatchingDonors);
+
+    let delivered = 0;
+    let failed = 0;
+    let pending = 0;
+    let skipped = 0;
+
+    const deliveryReport: BroadcastRecipientStatus[] = [];
+
+    // Process Channels
+    c.channels.forEach(channel => {
+      if (channel === 'DASHBOARD_NOTIFICATION') {
+        this.addNotification({
+          title: `${c.isEmergency ? '🚨 [ইমার্জেন্সি] ' : ''}${c.title}`,
+          message: c.message,
+          type: c.isEmergency ? 'EMERGENCY' : 'ANNOUNCEMENT',
+          targetRole: 'ALL'
+        });
+        delivered += 1;
+      }
+
+      if (channel === 'TELEGRAM_GROUP' || channel === 'TELEGRAM_DIRECT') {
+        const tgLog = this.addTelegramLog({
+          recipientName: 'Telegram Channel / Group',
+          recipientPhone: db.settings.telegramChatId || 'PBDA Group',
+          message: `<b>${c.title}</b>\n\n${c.message}${c.linkUrl ? `\n\n🔗 ${c.linkUrl}` : ''}`,
+          priority: c.priority,
+          status: 'DELIVERED',
+          messageType: c.type
+        });
+        if (tgLog.status === 'DELIVERED') delivered += matchedDonors.length || 1;
+        else failed += matchedDonors.length || 1;
+      }
+
+      if (channel === 'WHATSAPP_CLOUD' || channel === 'WHATSAPP_QR') {
+        matchedDonors.forEach(d => {
+          deliveryReport.push({
+            recipientId: d.id,
+            recipientName: d.name,
+            phone: d.phone,
+            channel,
+            status: 'DELIVERED',
+            deliveredAt: new Date().toISOString()
+          });
+          delivered += 1;
+        });
+      }
+
+      if (channel === 'EMAIL' || channel === 'SMS') {
+        skipped += matchedDonors.length || 1;
+      }
+    });
+
+    c.deliveredCount = Math.max(delivered, matchedDonors.length || 1);
+    c.failedCount = failed;
+    c.pendingCount = 0;
+    c.skippedCount = skipped;
+    c.status = 'SENT';
+    c.sentAt = new Date().toISOString();
+    c.deliveryReport = deliveryReport;
+
+    db.broadcastCampaigns[index] = c;
+    saveDatabase();
+
+    this.addAuditLog(
+      actorName,
+      actorRole,
+      'BROADCAST_SENT' as any,
+      `ব্রডকাস্ট সাফল্যজনকভাবে পাঠানো হয়েছে: ${c.title} [সফল: ${c.deliveredCount}, মোড: ${c.isEmergency ? 'ইমার্জেন্সি' : 'সাধারণ'}]`
+    );
+
+    return { success: true, campaign: c };
+  },
+
+  cancelScheduledBroadcast(id: string, actorName: string, actorRole: UserRole): { success: boolean; campaign?: BroadcastCampaign; error?: string } {
+    if (!db.broadcastCampaigns) return { success: false, error: 'ব্রডকাস্ট ক্যাম্পেইন পাওয়া যায়নি' };
+    const index = db.broadcastCampaigns.findIndex(c => c.id === id);
+    if (index === -1) return { success: false, error: 'ব্রডকাস্ট ক্যাম্পেইন পাওয়া যায়নি' };
+
+    const c = db.broadcastCampaigns[index];
+    c.status = 'CANCELLED';
+    c.updatedAt = new Date().toISOString();
+
+    db.broadcastCampaigns[index] = c;
+    saveDatabase();
+
+    this.addAuditLog(
+      actorName,
+      actorRole,
+      'BROADCAST_CANCELLED' as any,
+      `সিডিউলকৃত ব্রডকাস্ট বাতিল করা হয়েছে: ${c.title}`
+    );
+
+    return { success: true, campaign: c };
+  },
+
+  duplicateBroadcastCampaign(id: string, actorName: string, actorRole: UserRole): BroadcastCampaign {
+    const existing = this.getBroadcastCampaignById(id);
+    if (!existing) throw new Error('ক্যাম্পেইন পাওয়া যায়নি');
+
+    const cloned: Omit<BroadcastCampaign, 'id' | 'createdAt' | 'updatedAt' | 'deliveredCount' | 'failedCount' | 'pendingCount' | 'skippedCount'> = {
+      title: `${existing.title} (কপি)`,
+      message: existing.message,
+      type: existing.type,
+      priority: existing.priority,
+      channels: [...existing.channels],
+      isEmergency: existing.isEmergency,
+      targetFilter: JSON.parse(JSON.stringify(existing.targetFilter)),
+      estimatedRecipientsCount: existing.estimatedRecipientsCount,
+      status: 'DRAFT',
+      createdBy: actorName,
+      creatorRole: actorRole,
+      linkUrl: existing.linkUrl
+    };
+
+    return this.createBroadcastCampaign(cloned, actorName, actorRole);
+  },
+
+  deleteBroadcastCampaign(id: string, actorName: string, actorRole: UserRole): boolean {
+    if (!db.broadcastCampaigns) return false;
+    const index = db.broadcastCampaigns.findIndex(c => c.id === id);
+    if (index === -1) return false;
+
+    const removed = db.broadcastCampaigns.splice(index, 1)[0];
+    saveDatabase();
+
+    this.addAuditLog(
+      actorName,
+      actorRole,
+      'BROADCAST_DELETED' as any,
+      `ব্রডকাস্ট মেসেজ রেকর্ড ডিলিট করা হয়েছে: ${removed.title}`
+    );
+
+    return true;
+  },
+
+  // Templates
+  getMessageTemplates(): MessageTemplate[] {
+    return [...(db.messageTemplates || [])];
+  },
+
+  createMessageTemplate(
+    data: Omit<MessageTemplate, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>,
+    actorName: string
+  ): MessageTemplate {
+    if (!db.messageTemplates) db.messageTemplates = [];
+
+    const newTmpl: MessageTemplate = {
+      ...data,
+      id: `tmpl-${Date.now().toString().slice(-6)}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: actorName
+    };
+
+    db.messageTemplates.unshift(newTmpl);
+    saveDatabase();
+
+    this.addAuditLog(actorName, 'ADMIN', 'TEMPLATE_CREATED' as any, `নতুন ব্রডকাস্ট টেমপ্লেট তৈরি করা হয়েছে: ${newTmpl.name}`);
+    return newTmpl;
+  },
+
+  updateMessageTemplate(
+    id: string,
+    updates: Partial<MessageTemplate>,
+    actorName: string
+  ): MessageTemplate {
+    if (!db.messageTemplates) db.messageTemplates = [];
+    const index = db.messageTemplates.findIndex(t => t.id === id);
+    if (index === -1) throw new Error('টেমপ্লেট পাওয়া যায়নি');
+
+    const updated = {
+      ...db.messageTemplates[index],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    db.messageTemplates[index] = updated;
+    saveDatabase();
+
+    this.addAuditLog(actorName, 'ADMIN', 'TEMPLATE_UPDATED' as any, `ব্রডকাস্ট টেমপ্লেট আপডেট করা হয়েছে: ${updated.name}`);
+    return updated;
+  },
+
+  deleteMessageTemplate(id: string, actorName: string): boolean {
+    if (!db.messageTemplates) return false;
+    const index = db.messageTemplates.findIndex(t => t.id === id);
+    if (index === -1) return false;
+
+    const removed = db.messageTemplates.splice(index, 1)[0];
+    saveDatabase();
+
+    this.addAuditLog(actorName, 'ADMIN', 'TEMPLATE_DELETED' as any, `ব্রডকাস্ট টেমপ্লেট মুছে ফেলা হয়েছে: ${removed.name}`);
+    return true;
   }
 
 };
+
 
 export function calculateNextRunTime(frequency: JobScheduleFrequency, customCron?: string): string {
   const now = new Date();

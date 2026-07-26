@@ -3,9 +3,26 @@ import path from 'path';
 import jwt from 'jsonwebtoken';
 import { createServer as createViteServer } from 'vite';
 import { dbService, calculateDonorStatus } from './src/server/db.js';
+import { appCache } from './src/server/cacheService.js';
 import { notificationService } from './src/server/notificationService.js';
 import { whatsappQrService } from './src/server/whatsappQrService.js';
 import { Donor, BloodGroup } from './src/types/index.js';
+import {
+  securityHeadersMiddleware,
+  sanitizeRequestMiddleware,
+  csrfProtectionMiddleware,
+  globalErrorHandlerMiddleware,
+  loginRateLimiter,
+  publicSearchLimiter,
+  bloodRequestLimiter,
+  broadcastLimiter,
+  exportLimiter,
+  settingsApiLimiter,
+  isTokenBlacklisted,
+  blacklistToken,
+  maskSensitiveFields,
+  runSecurityAuditScan
+} from './src/server/security.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'pbda_pangsha_blood_donors_secret_key_2026';
 const PORT = 3000;
@@ -16,7 +33,12 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // JWT Helper middleware
+  // Security Middlewares
+  app.use(securityHeadersMiddleware);
+  app.use(sanitizeRequestMiddleware);
+  app.use(csrfProtectionMiddleware);
+
+  // JWT Helper middleware with revocation and DB status verification
   const authMiddleware = (req: any, res: any, next: any) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -24,9 +46,26 @@ async function startServer() {
     }
 
     const token = authHeader.split(' ')[1];
+
+    if (isTokenBlacklisted(token)) {
+      return res.status(401).json({ error: 'সেশনটি অকার্যকর বা ব্যবহারকারী ইতিমধ্যে লগআউট করেছেন।' });
+    }
+
     try {
       const decoded: any = jwt.verify(token, JWT_SECRET);
-      req.user = decoded;
+      const admin = dbService.findAdminByEmail(decoded.email);
+
+      if (!admin || !admin.active || admin.isDeleted) {
+        return res.status(403).json({ error: 'আপনার অ্যাকাউন্টটি নিষ্ক্রিয় বা বাতিল করা হয়েছে।' });
+      }
+
+      req.user = {
+        ...decoded,
+        id: admin.id,
+        name: admin.name,
+        role: admin.role,
+        email: admin.email
+      };
       next();
     } catch (err) {
       return res.status(401).json({ error: 'সেশন এর মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে লগইন করুন।' });
@@ -50,6 +89,51 @@ async function startServer() {
     res.json(dbService.getSettings());
   });
 
+  // Cached Public System Statistics Endpoint
+  app.get('/api/stats', (req, res) => {
+    const cacheKey = 'public_app_stats';
+    const cachedStats = appCache.get(cacheKey);
+    if (cachedStats) {
+      return res.json(cachedStats);
+    }
+
+    const donors = dbService.getDonors();
+    const requests = dbService.getBloodRequests();
+    const campaigns = dbService.getCampaigns();
+
+    const totalDonors = donors.length;
+    const availableDonors = donors.filter(d => d.status === 'AVAILABLE').length;
+    const verifiedDonors = donors.filter(d => d.isVerified || d.verificationStatus === 'VERIFIED').length;
+    const fulfilledRequests = requests.filter(r => r.status === 'FULFILLED' || r.status === 'COMPLETED').length;
+    const pendingRequests = requests.filter(r => r.status === 'SEARCHING' || r.status === 'MATCHED' || r.priority === 'CRITICAL' || r.priority === 'URGENT').length;
+    const activeCampaigns = campaigns.length;
+
+    // Group counts
+    const bloodGroupCounts: Record<string, number> = {};
+    const availableByGroup: Record<string, number> = {};
+    const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+    bloodGroups.forEach(bg => {
+      bloodGroupCounts[bg] = donors.filter(d => d.bloodGroup === bg).length;
+      availableByGroup[bg] = donors.filter(d => d.bloodGroup === bg && d.status === 'AVAILABLE').length;
+    });
+
+    const result = {
+      totalDonors,
+      availableDonors,
+      verifiedDonors,
+      fulfilledRequests,
+      pendingRequests,
+      activeCampaigns,
+      bloodGroupCounts,
+      availableByGroup,
+      cachedAt: new Date().toISOString()
+    };
+
+    appCache.set(cacheKey, result, 30000, ['donors', 'requests', 'campaigns']); // Cache for 30 seconds
+    res.json(result);
+  });
+
   app.put('/api/settings', authMiddleware, superAdminOnly, (req: any, res: any) => {
     const updated = dbService.updateSettings(req.body, req.user.name);
     res.json(updated);
@@ -65,7 +149,7 @@ async function startServer() {
   });
 
   // Public & Filtered Donor Search
-  app.get('/api/donors', (req, res) => {
+  app.get('/api/donors', publicSearchLimiter.middleware('সার্চ সীমা অতিক্রম করেছে। ১ মিনিট পর চেষ্টা করুন।'), (req, res) => {
     const bloodGroup = req.query.bloodGroup as string;
     const union = req.query.union as string;
     const upazila = req.query.upazila as string;
@@ -114,7 +198,7 @@ async function startServer() {
     res.json(request);
   });
 
-  app.post('/api/requests', (req, res) => {
+  app.post('/api/requests', bloodRequestLimiter.middleware('ঘণ্টায় সর্বোচ্চ ১০টি রক্তদানের আবেদন করা সম্ভব।'), (req, res) => {
     const {
       patientName,
       bloodGroup,
@@ -190,12 +274,14 @@ async function startServer() {
       data: newReq
     });
 
+    appCache.invalidateTag('requests');
     res.status(201).json(newReq);
   });
 
   app.delete('/api/requests/:id', authMiddleware, (req: any, res: any) => {
     const success = dbService.deleteBloodRequest(req.params.id, req.user.name);
     if (!success) return res.status(404).json({ error: 'আবেদন পাওয়া যায়নি' });
+    appCache.invalidateTag('requests');
     res.json({ message: 'রক্তের আবেদন ট্র্যাশে স্থানান্তরিত হয়েছে' });
   });
 
@@ -235,7 +321,7 @@ async function startServer() {
     return { ipAddress, browser, os, deviceType };
   }
 
-  app.post('/api/auth/login', (req, res) => {
+  app.post('/api/auth/login', loginRateLimiter.middleware('পাসওয়ার্ড বা লগইন চেষ্টা সীমা অতিক্রম করেছে। ১৫ মিনিট অপেক্ষা করুন।'), (req, res) => {
     const { email, password } = req.body;
     const meta = parseRequestMeta(req);
 
@@ -298,10 +384,33 @@ async function startServer() {
     });
   });
 
+  app.post('/api/auth/logout', authMiddleware, (req: any, res: any) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      blacklistToken(token);
+    }
+
+    dbService.addAuditLog(
+      req.user.name,
+      req.user.role,
+      'USER_LOGOUT',
+      `এডমিন ড্যাশবোর্ড থেকে সফলভাবে লগআউট সম্পন্ন: ${req.user.email}`
+    );
+
+    res.json({ success: true, message: 'সফলভাবে লগআউট করা হয়েছে।' });
+  });
+
   app.get('/api/auth/me', authMiddleware, (req: any, res: any) => {
     const admin = dbService.findAdminByEmail(req.user.email);
     if (!admin) return res.status(404).json({ error: 'ব্যবহারকারী পাওয়া যায়নি' });
     res.json(admin);
+  });
+
+  // Security Audit Scan Report Endpoint
+  app.get('/api/security/audit-report', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const report = runSecurityAuditScan();
+    res.json(report);
   });
 
   // Admin Donor Management
@@ -1596,7 +1705,7 @@ async function startServer() {
   });
 
   // Secure Data Export Endpoint (Strict SUPER_ADMIN Access Only)
-  app.post('/api/export/data', authMiddleware, (req: any, res: any) => {
+  app.post('/api/export/data', authMiddleware, exportLimiter.middleware('ডাটা এক্সপোর্ট সীমা অতিক্রম করেছে। ১ ঘণ্টা পর চেষ্টা করুন।'), (req: any, res: any) => {
     if (req.user.role !== 'SUPER_ADMIN') {
       return res.status(403).json({ error: 'প্রবেশাধিকার সংরক্ষিত। শুধুমাত্র সুপার এডমিন এই ডাটা এক্সপোর্ট করতে পারবেন।' });
     }
@@ -1947,6 +2056,113 @@ async function startServer() {
     res.json(result);
   });
 
+  // ----------------------------------------------------
+  // COMMUNICATION CENTER & SMART BROADCAST SYSTEM API ENDPOINTS
+  // ----------------------------------------------------
+
+  // Middleware helper for Admin or Super Admin
+  const adminOrSuperAdmin = (req: any, res: any, next: any) => {
+    if (req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'ADMIN') {
+      return next();
+    }
+    return res.status(403).json({ error: 'প্রবেশাধিকার নেই। শুধুমাত্র এডমিন এবং সুপার এডমিনরা ব্রডকাস্ট মেসেজ পাঠাতে পারেন।' });
+  };
+
+  // Get all broadcast campaigns
+  app.get('/api/communication/broadcasts', authMiddleware, adminOrSuperAdmin, (req: any, res: any) => {
+    const { status, type, searchQuery } = req.query;
+    const campaigns = dbService.getBroadcastCampaigns({
+      status: status as string,
+      type: type as string,
+      searchQuery: searchQuery as string
+    });
+    res.json(campaigns);
+  });
+
+  // Get broadcast campaign by ID
+  app.get('/api/communication/broadcasts/:id', authMiddleware, adminOrSuperAdmin, (req: any, res: any) => {
+    const campaign = dbService.getBroadcastCampaignById(req.params.id);
+    if (!campaign) return res.status(404).json({ error: 'ব্রডকাস্ট ক্যাম্পেইন পাওয়া যায়নি' });
+    res.json(campaign);
+  });
+
+  // Calculate target audience recipients in real-time
+  app.post('/api/communication/broadcasts/calculate-target', authMiddleware, adminOrSuperAdmin, (req: any, res: any) => {
+    const targetFilter = req.body;
+    const result = dbService.calculateTargetRecipients(targetFilter || {});
+    res.json(result);
+  });
+
+  // Create new broadcast campaign
+  app.post('/api/communication/broadcasts', authMiddleware, adminOrSuperAdmin, broadcastLimiter.middleware('ব্রডকাস্ট পাঠানোর নির্দিষ্ট সময়সীমা অতিক্রান্ত হয়েছে। ১ ঘণ্টা পর চেষ্টা করুন।'), (req: any, res: any) => {
+    try {
+      const newCampaign = dbService.createBroadcastCampaign(req.body, req.user.name, req.user.role);
+      res.status(201).json(newCampaign);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'ব্রডকাস্ট তৈরি করতে ব্যর্থ হয়েছে' });
+    }
+  });
+
+  // Send broadcast campaign now
+  app.post('/api/communication/broadcasts/:id/send', authMiddleware, adminOrSuperAdmin, broadcastLimiter.middleware('ব্রডকাস্ট প্রেরণের লিমিট অতিক্রান্ত।'), (req: any, res: any) => {
+    const result = dbService.sendBroadcastCampaignNow(req.params.id, req.user.name, req.user.role);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json(result);
+  });
+
+  // Cancel scheduled broadcast campaign
+  app.post('/api/communication/broadcasts/:id/cancel', authMiddleware, adminOrSuperAdmin, (req: any, res: any) => {
+    const result = dbService.cancelScheduledBroadcast(req.params.id, req.user.name, req.user.role);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json(result);
+  });
+
+  // Duplicate broadcast campaign
+  app.post('/api/communication/broadcasts/:id/duplicate', authMiddleware, adminOrSuperAdmin, (req: any, res: any) => {
+    try {
+      const duplicated = dbService.duplicateBroadcastCampaign(req.params.id, req.user.name, req.user.role);
+      res.status(201).json(duplicated);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'ক্যাম্পেইন কপি করতে ব্যর্থ হয়েছে' });
+    }
+  });
+
+  // Delete broadcast campaign
+  app.delete('/api/communication/broadcasts/:id', authMiddleware, adminOrSuperAdmin, (req: any, res: any) => {
+    const success = dbService.deleteBroadcastCampaign(req.params.id, req.user.name, req.user.role);
+    if (!success) return res.status(404).json({ error: 'ক্যাম্পেইন পাওয়া যায়নি' });
+    res.json({ success: true });
+  });
+
+  // Get message templates
+  app.get('/api/communication/templates', authMiddleware, adminOrSuperAdmin, (req: any, res: any) => {
+    const templates = dbService.getMessageTemplates();
+    res.json(templates);
+  });
+
+  // Create message template
+  app.post('/api/communication/templates', authMiddleware, adminOrSuperAdmin, (req: any, res: any) => {
+    const newTmpl = dbService.createMessageTemplate(req.body, req.user.name);
+    res.status(201).json(newTmpl);
+  });
+
+  // Update message template
+  app.put('/api/communication/templates/:id', authMiddleware, adminOrSuperAdmin, (req: any, res: any) => {
+    try {
+      const updated = dbService.updateMessageTemplate(req.params.id, req.body, req.user.name);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'টেমপ্লেট আপডেট করতে ব্যর্থ হয়েছে' });
+    }
+  });
+
+  // Delete message template
+  app.delete('/api/communication/templates/:id', authMiddleware, adminOrSuperAdmin, (req: any, res: any) => {
+    const success = dbService.deleteMessageTemplate(req.params.id, req.user.name);
+    if (!success) return res.status(404).json({ error: 'টেমপ্লেট পাওয়া যায়নি' });
+    res.json({ success: true });
+  });
+
 
   // ----------------------------------------------------
   // VITE & STATIC FILES SERVING
@@ -1964,6 +2180,9 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Global Centralized Error Handler Middleware
+  app.use(globalErrorHandlerMiddleware);
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[PBDA Backend Server] Running on http://0.0.0.0:${PORT}`);

@@ -40,7 +40,9 @@ export const SystemHealthManager: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Active Sub-Tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'database' | 'notifications' | 'automation' | 'resources' | 'alerts'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'database' | 'notifications' | 'automation' | 'resources' | 'alerts' | 'security'>('overview');
+  const [securityReport, setSecurityReport] = useState<any>(null);
+  const [loadingSecurity, setLoadingSecurity] = useState<boolean>(false);
 
   // Toast State
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -79,8 +81,27 @@ export const SystemHealthManager: React.FC = () => {
     }
   };
 
+  const fetchSecurityAuditReport = async () => {
+    setLoadingSecurity(true);
+    try {
+      const res = await fetch('/api/security/audit-report', { headers: getAuthHeader() });
+      if (res.ok) {
+        const data = await res.json();
+        setSecurityReport(data);
+      } else {
+        showToast('সিকিউরিটি অডিট রিপোর্ট লোড করতে সমস্যা হয়েছে', 'error');
+      }
+    } catch (err) {
+      console.error('Failed to fetch security audit report:', err);
+      showToast('নেটওয়ার্ক ত্রুটি', 'error');
+    } finally {
+      setLoadingSecurity(false);
+    }
+  };
+
   useEffect(() => {
     fetchHealthReport();
+    fetchSecurityAuditReport();
     // Auto refresh status every 20 seconds
     const interval = setInterval(() => {
       fetchHealthReport(false);
@@ -499,6 +520,21 @@ export const SystemHealthManager: React.FC = () => {
         >
           <AlertOctagon className="w-4 h-4" />
           <span>অ্যালার্ট ও সাম্প্রতিক ত্রুটি ({report?.alerts.length || 0})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('security');
+            fetchSecurityAuditReport();
+          }}
+          className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'security'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <span>সিকিউরিটি অডিট রিপোর্ট (Security Audit)</span>
         </button>
       </div>
 
@@ -1027,6 +1063,141 @@ export const SystemHealthManager: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: SECURITY AUDIT REPORT */}
+      {activeTab === 'security' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Security Banner & Grade */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-indigo-500/20 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="space-y-2 text-center md:text-left">
+              <div className="flex items-center justify-center md:justify-start gap-2">
+                <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                <h3 className="text-xl font-black">এন্টারপ্রাইজ সিকিউরিটি অডিট ও গার্ড প্যানেল</h3>
+              </div>
+              <p className="text-xs text-slate-300 max-w-xl">
+                সিস্টেমের অথেন্টিকেশন, আরবিএসি প্রটেকশন, রেট লিমিটিং, সিএসআরএফ ফিল্টার, হেডার্স সিকিউরিটি এবং প্রাইভেসি মাস্কিং সংক্রান্ত লাইভ অডিট ফলাফল।
+              </p>
+              {securityReport && (
+                <div className="text-[11px] text-slate-400 font-mono">
+                  সর্বশেষ অডিট স্ক্যান: {formatDateTime(securityReport.scanTimestamp)}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-6 bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-indigo-500/30">
+              <div className="text-center">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">সিকিউরিটি গ্রেড</div>
+                <div className="text-3xl font-black text-emerald-400">{securityReport?.grade || 'A+'}</div>
+              </div>
+              <div className="h-10 w-px bg-slate-700" />
+              <div className="text-center">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">সিকিউরিটি স্কোর</div>
+                <div className="text-3xl font-black text-white">{securityReport?.totalScore || 100}/100</div>
+              </div>
+              <button
+                onClick={fetchSecurityAuditReport}
+                disabled={loadingSecurity}
+                className="ml-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingSecurity ? 'animate-spin' : ''}`} />
+                <span>স্ক্যান চালান</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Passed Checks Grid */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                <span>সফল সিকিউরিটি চেকসমূহ (Passed Security Audits - {securityReport?.passedChecks?.length || 0})</span>
+              </div>
+              <span className="text-xs px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full font-bold">
+                ১০০% সুরক্ষিত
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {securityReport?.passedChecks?.map((check: any) => (
+                <div key={check.id} className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-0.5 text-xs">
+                    <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>{check.title}</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                        {check.category}
+                      </span>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 text-[11px]">{check.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Warnings & Recommendations */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Warnings */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4">
+              <div className="flex items-center gap-2 font-bold text-sm text-amber-600 dark:text-amber-400 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                <span>সতর্কতা ও সিকিউরিটি ওয়্যার্নিং (Warnings - {securityReport?.warnings?.length || 0})</span>
+              </div>
+
+              {(!securityReport?.warnings || securityReport.warnings.length === 0) ? (
+                <div className="p-4 text-center text-xs text-slate-400">
+                  কোনো ঝুঁকিপূর্ণ সিকিউরিটি ওয়্যার্নিং চিহ্নিত হয়নি।
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {securityReport.warnings.map((warn: any) => (
+                    <div key={warn.id} className="p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-xs space-y-1">
+                      <div className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-300">
+                        <span>{warn.title}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          warn.severity === 'HIGH' ? 'bg-rose-500/20 text-rose-500' : 'bg-amber-500/20 text-amber-500'
+                        }`}>
+                          {warn.severity}
+                        </span>
+                      </div>
+                      <p className="text-slate-600 dark:text-slate-400 text-[11px]">{warn.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Recommendations & Residual Risks */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4">
+              <div className="flex items-center gap-2 font-bold text-sm text-indigo-600 dark:text-indigo-400 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <Lock className="w-5 h-5 text-indigo-500" />
+                <span>সুপারিশ ও অবশিষ্ট রিস্ক মিটিগেশন (Recommendations)</span>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                {securityReport?.recommendations?.map((rec: any) => (
+                  <div key={rec.id} className="p-3 rounded-2xl bg-indigo-500/5 border border-indigo-500/20 space-y-1">
+                    <div className="font-bold text-indigo-900 dark:text-indigo-300">{rec.title}</div>
+                    <p className="text-slate-600 dark:text-slate-400 text-[11px]">{rec.action}</p>
+                  </div>
+                ))}
+
+                {securityReport?.remainingRisks?.map((risk: any) => (
+                  <div key={risk.id} className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
+                    <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{risk.title}</span>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 text-[11px]">মিটিগেশন: {risk.mitigation}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

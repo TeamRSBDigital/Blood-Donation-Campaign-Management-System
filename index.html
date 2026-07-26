@@ -1,13 +1,77 @@
 <!doctype html>
-<html lang="en">
+<html lang="bn" dir="ltr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    
+    <!-- Primary SEO Meta Tags -->
+    <title>পাংশা ব্লাড ডোনার্স এসোসিয়েশন - রক্তদানে জীবন বাঁচে</title>
+    <meta name="title" content="পাংশা ব্লাড ডোনার্স এসোসিয়েশন - রক্তদানে জীবন বাঁচে" />
+    <meta name="description" content="পাংশা উপজেলা ও রাজবাড়ী জেলার স্বেচ্ছাসেবী রক্তদাতা অনুসন্ধান ও জরুরী রক্তদান ক্যাম্পেইন পোর্টাল। দ্রুত রক্তদাতা খুঁজে পেতে বা স্বপ্রণোদিত রক্তদানে নিবন্ধন করুন।" />
+    <meta name="keywords" content="Pangsha Blood Donors, Pangsha Blood Bank, PBDA Bangladesh, Blood Donor Rajbari, পাংশা রক্তদান, রাজবাড়ী রক্তদাতা, রক্তদান ক্যাম্পেইন" />
+    <meta name="author" content="পাংশা ব্লাড ডোনার্স এসোসিয়েশন (PBDA)" />
+    <meta name="theme-color" content="#dc2626" />
+    <link rel="canonical" href="https://pbdabangladesh.org/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://pbdabangladesh.org/" />
+    <meta property="og:title" content="পাংশা ব্লাড ডোনার্স এসোসিয়েশন - জরুরী রক্তদাতা সন্ধান কেন্দ্র" />
+    <meta property="og:description" content="পাংশা উপজেলা ও রাজবাড়ী জেলার ১,৫০০+ রক্তদাতার ডিজিটালাইজড ডাটাবেজ। রক্তদান করুন, জীবন বাঁচান।" />
+    <meta property="og:image" content="https://pbdabangladesh.org/pbda-og-image.png" />
+    <meta property="og:site_name" content="PBDA Bangladesh" />
+    <meta property="og:locale" content="bn_BD" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://pbdabangladesh.org/" />
+    <meta property="twitter:title" content="পাংশা ব্লাড ডোনার্স এসোসিয়েশন" />
+    <meta property="twitter:description" content="পাংশা ও রাজবাড়ীর স্বেচ্ছাসেবী ব্লাড ডোনার পোর্টাল।" />
+    <meta property="twitter:image" content="https://pbdabangladesh.org/pbda-og-image.png" />
+
+    <!-- PWA & Favicon -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" href="/pbda-logo.png" />
+    <link rel="apple-touch-icon" href="/pbda-logo.png" />
+
+    <!-- Font Preconnect for Performance Optimization -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Structured Data (JSON-LD) for Google Rich Snippets -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "MedicalOrganization",
+        "name": "পাংশা ব্লাড ডোনার্স এসোসিয়েশন (PBDA)",
+        "alternateName": "Pangsha Blood Donors Association",
+        "url": "https://pbdabangladesh.org",
+        "logo": "https://pbdabangladesh.org/pbda-logo.png",
+        "description": "পাংশা উপজেলা ও রাজবাড়ী জেলার ডিজিটাল স্বেচ্ছাসেবী রক্তদান ও ব্যবস্থাপনা নেটওয়ার্ক।",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "পাংশা মডেল থানা রোড, পাংশা পৌরসভা",
+          "addressLocality": "Pangsha",
+          "addressRegion": "Rajbari",
+          "addressCountry": "BD"
+        },
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "telephone": "+8801712000000",
+          "contactType": "emergency",
+          "availableLanguage": ["Bengali", "English"]
+        }
+      }
+    </script>
   </head>
-  <body>
+  <body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-rose-500 selection:text-white">
+    <!-- Accessibility Skip Link -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-rose-600 focus:text-white focus:font-bold">
+      মূল কনটেন্টে চলে যান (Skip to Main Content)
+    </a>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

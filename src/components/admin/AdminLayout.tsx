@@ -17,6 +17,7 @@ import { DataExportCenter } from './DataExportCenter.js';
 import { BackupRestoreManager } from './BackupRestoreManager.js';
 import { AutomationManager } from './AutomationManager.js';
 import { SystemHealthManager } from './SystemHealthManager.js';
+import { CommunicationCenter } from './CommunicationCenter.js';
 import { ForbiddenPage } from './ForbiddenPage.js';
 import { UserProfileModal } from './UserProfileModal.js';
 import { ChangePasswordModal } from './ChangePasswordModal.js';
@@ -29,6 +30,7 @@ import {
   Bot,
   MessageSquare,
   QrCode,
+  Radio,
   Shield,
   ShieldAlert,
   Settings,
@@ -102,6 +104,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       ) {
         return 'system-health';
       }
+      if (
+        pathname.includes('communication') ||
+        tabParam === 'communication'
+      ) {
+        return 'communication';
+      }
     }
     return 'overview';
   });
@@ -133,6 +141,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       label: 'রক্তের চাহিদা',
       icon: Droplet,
       requiredRoles: ['SUPER_ADMIN', 'ADMIN', 'VOLUNTEER'],
+    },
+    {
+      id: 'communication',
+      label: 'কমিউনিকেশন সেন্টার (ব্রডকাস্ট)',
+      icon: Radio,
+      requiredRoles: ['SUPER_ADMIN', 'ADMIN'],
     },
     {
       id: 'reports',
@@ -588,6 +602,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
               {activeTab === 'overview' && <AdminOverview onNavigateTab={(tab) => handleSelectNav(tab)} />}
               {activeTab === 'donors' && <DonorManagement />}
               {activeTab === 'requests' && <BloodRequestManagement />}
+              {activeTab === 'communication' && <CommunicationCenter currentUserRole={currentUserRole} />}
               {activeTab === 'reports' && <ReportsAnalytics />}
               {activeTab === 'telegram' && <TelegramNotificationSettings />}
               {activeTab === 'whatsapp' && <WhatsappNotificationSettings />}

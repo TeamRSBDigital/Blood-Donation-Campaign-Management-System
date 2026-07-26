@@ -1,0 +1,26 @@
+{
+  "short_name": "PBDA Blood",
+  "name": "পাংশা ব্লাড ডোনার্স এসোসিয়েশন - Pangsha Blood Donors Association",
+  "icons": [
+    {
+      "src": "/pbda-logo.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pbda-logo.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#dc2626",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "description": "পাংশা উপজেলা ও রাজবাড়ী জেলার জরুরী রক্তদান ও রক্তদাতা তথ্য কেন্দ্র",
+  "categories": ["medical", "health", "lifestyle"]
+}

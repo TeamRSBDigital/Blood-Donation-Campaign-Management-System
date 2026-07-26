@@ -20,6 +20,7 @@ import {
 
 interface DonorDetailModalProps {
   donor: Donor | null;
+  isOpen?: boolean;
   onClose: () => void;
 }
 
