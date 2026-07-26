@@ -87,6 +87,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       ) {
         return 'backup';
       }
+      if (
+        pathname.includes('automation') ||
+        tabParam === 'automation'
+      ) {
+        return 'automation';
+      }
     }
     return 'overview';
   });
