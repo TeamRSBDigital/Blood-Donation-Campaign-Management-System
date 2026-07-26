@@ -16,6 +16,7 @@ import { BecomeDonorSection } from './components/BecomeDonorSection.js';
 import { EmergencyDirectory } from './components/EmergencyDirectory.js';
 import { GallerySection } from './components/home/GallerySection.js';
 import { ContactSection } from './components/home/ContactSection.js';
+import { MobileBottomNav } from './components/MobileBottomNav.js';
 import { AdminLoginPage } from './components/AdminLoginPage.js';
 import { BloodGroup } from './types/index.js';
 import { Loader2 } from 'lucide-react';
@@ -149,7 +150,7 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900 selection:bg-red-600 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900 selection:bg-red-600 selection:text-white pb-16 md:pb-0">
       {/* Header */}
       <Header
         activeTab={activeTab}
@@ -199,6 +200,9 @@ const AppContent: React.FC = () => {
 
       {/* Footer */}
       <Footer setActiveTab={setActiveTab} onTabChange={(tab) => setActiveTab(tab)} />
+
+      {/* Mobile Bottom Navigation Bar & Sheet (Mobile only < 768px) */}
+      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Public Blood Request Post Modal */}
       <PublicBloodRequestForm
