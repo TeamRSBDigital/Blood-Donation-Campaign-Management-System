@@ -2164,6 +2164,11 @@ async function startServer() {
   });
 
 
+  // Permanent HTTP redirects for deprecated admin login routes to official /pbda-admin route
+  app.get(['/admin/login', '/secure-admin', '/management-login'], (req, res) => {
+    res.redirect(301, '/pbda-admin');
+  });
+
   // ----------------------------------------------------
   // VITE & STATIC FILES SERVING
   // ----------------------------------------------------

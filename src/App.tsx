@@ -31,12 +31,18 @@ const AppContent: React.FC = () => {
     if (typeof window !== 'undefined') {
       const pathname = window.location.pathname.toLowerCase();
       const searchParams = new URLSearchParams(window.location.search);
+
       if (
+        pathname === '/pbda-admin' ||
+        pathname === '/admin/login' ||
+        pathname === '/secure-admin' ||
+        pathname === '/management-login' ||
         pathname.includes('/dashboard') ||
         pathname.includes('/admin') ||
         pathname.includes('/automation') ||
         pathname.includes('/system-health') ||
-        pathname.includes('/backup')
+        pathname.includes('/backup') ||
+        pathname.includes('/audit')
       ) {
         return 'admin';
       }
@@ -64,36 +70,85 @@ const AppContent: React.FC = () => {
     return 'home';
   });
 
-  // Handle URL changes & popstate
+  // Handle URL changes, route protection, and redirects
   useEffect(() => {
-    const handlePopState = () => {
-      if (typeof window !== 'undefined') {
-        const pathname = window.location.pathname.toLowerCase();
-        if (pathname.includes('/dashboard') || pathname.includes('/admin')) {
-          setActiveTab('admin');
-        } else if (pathname.includes('/search')) {
-          setActiveTab('search');
-        } else if (pathname.includes('/request-blood')) {
-          setActiveTab('request-blood');
-        } else if (pathname.includes('/campaigns')) {
-          setActiveTab('campaigns');
-        } else if (pathname.includes('/register')) {
-          setActiveTab('register');
-        } else if (pathname.includes('/emergency')) {
-          setActiveTab('emergency');
-        } else if (pathname.includes('/gallery')) {
-          setActiveTab('gallery');
-        } else if (pathname.includes('/contact')) {
-          setActiveTab('contact');
-        } else if (pathname === '/' || pathname === '') {
-          setActiveTab('home');
+    const handleRouteSync = () => {
+      if (typeof window === 'undefined') return;
+      const pathname = window.location.pathname.toLowerCase();
+      const searchParams = new URLSearchParams(window.location.search);
+
+      // 1. Deprecated admin login routes -> Permanent redirect to /pbda-admin
+      if (
+        pathname === '/admin/login' ||
+        pathname === '/secure-admin' ||
+        pathname === '/management-login'
+      ) {
+        window.history.replaceState({}, '', '/pbda-admin');
+        if (isAuthenticated) {
+          window.history.replaceState({}, '', '/dashboard');
         }
+        setActiveTab('admin');
+        return;
+      }
+
+      // 2. Official admin login route /pbda-admin
+      if (pathname === '/pbda-admin') {
+        if (isAuthenticated) {
+          window.history.replaceState({}, '', '/dashboard');
+        }
+        setActiveTab('admin');
+        return;
+      }
+
+      // 3. Protected dashboard & admin routes
+      if (
+        pathname.includes('/dashboard') ||
+        pathname.includes('/admin') ||
+        pathname.includes('/automation') ||
+        pathname.includes('/system-health') ||
+        pathname.includes('/backup') ||
+        pathname.includes('/audit') ||
+        pathname.includes('/activity-logs')
+      ) {
+        if (!isAuthenticated) {
+          window.history.replaceState({}, '', '/pbda-admin');
+        }
+        setActiveTab('admin');
+        return;
+      }
+
+      // 4. Logout route
+      if (pathname === '/logout') {
+        window.history.replaceState({}, '', '/');
+        setActiveTab('home');
+        return;
+      }
+
+      // 5. Public site routes
+      if (pathname.includes('/request-blood') || pathname.includes('/request_blood')) {
+        setActiveTab('request-blood');
+      } else if (pathname.includes('/search') || searchParams.has('blood_group') || searchParams.has('bloodGroup')) {
+        setActiveTab('search');
+      } else if (pathname.includes('/campaigns')) {
+        setActiveTab('campaigns');
+      } else if (pathname.includes('/register')) {
+        setActiveTab('register');
+      } else if (pathname.includes('/emergency')) {
+        setActiveTab('emergency');
+      } else if (pathname.includes('/gallery')) {
+        setActiveTab('gallery');
+      } else if (pathname.includes('/contact')) {
+        setActiveTab('contact');
+      } else if (pathname === '/' || pathname === '') {
+        setActiveTab('home');
       }
     };
 
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+    handleRouteSync();
+
+    window.addEventListener('popstate', handleRouteSync);
+    return () => window.removeEventListener('popstate', handleRouteSync);
+  }, [isAuthenticated]);
 
   // Selected blood group filter
   const [heroSelectedGroup, setHeroSelectedGroup] = useState<BloodGroup | null>(() => {

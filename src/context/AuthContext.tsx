@@ -5,7 +5,7 @@ interface AuthContextType {
   user: AdminUser | null;
   token: string | null;
   isAuthenticated: boolean;
-  login: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, pass: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isLoading: boolean;
   isAdminOrSuper: boolean;
@@ -15,7 +15,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AdminUser | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('pbda_token'));
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('pbda_token') || sessionStorage.getItem('pbda_token');
+    }
+    return null;
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -34,12 +39,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(userData);
         } else {
           localStorage.removeItem('pbda_token');
+          sessionStorage.removeItem('pbda_token');
           setToken(null);
           setUser(null);
         }
       } catch (err) {
         console.error('Auth verification error:', err);
         localStorage.removeItem('pbda_token');
+        sessionStorage.removeItem('pbda_token');
         setToken(null);
         setUser(null);
       } finally {
@@ -50,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuth();
   }, [token]);
 
-  const login = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (email: string, pass: string, rememberMe: boolean = true): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -63,7 +70,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, error: data.error || 'লগইন করতে ব্যর্থ হয়েছে' };
       }
 
-      localStorage.setItem('pbda_token', data.token);
+      if (rememberMe) {
+        localStorage.setItem('pbda_token', data.token);
+        sessionStorage.removeItem('pbda_token');
+      } else {
+        sessionStorage.setItem('pbda_token', data.token);
+        localStorage.removeItem('pbda_token');
+      }
+
       setToken(data.token);
       setUser(data.user);
       return { success: true };
@@ -73,7 +87,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    localStorage.removeItem('pbda_token');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('pbda_token');
+      sessionStorage.removeItem('pbda_token');
+    }
     setToken(null);
     setUser(null);
   };
