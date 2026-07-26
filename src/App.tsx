@@ -14,6 +14,8 @@ import { PublicBloodRequestForm } from './components/PublicBloodRequestForm.js';
 import { CampaignsSection } from './components/CampaignsSection.js';
 import { BecomeDonorSection } from './components/BecomeDonorSection.js';
 import { EmergencyDirectory } from './components/EmergencyDirectory.js';
+import { GallerySection } from './components/home/GallerySection.js';
+import { ContactSection } from './components/home/ContactSection.js';
 import { AdminLoginPage } from './components/AdminLoginPage.js';
 import { BloodGroup } from './types/index.js';
 import { Loader2 } from 'lucide-react';
@@ -51,6 +53,12 @@ const AppContent: React.FC = () => {
       ) {
         return 'search';
       }
+      if (pathname.includes('/gallery')) {
+        return 'gallery';
+      }
+      if (pathname.includes('/contact')) {
+        return 'contact';
+      }
     }
     return 'home';
   });
@@ -72,6 +80,10 @@ const AppContent: React.FC = () => {
           setActiveTab('register');
         } else if (pathname.includes('/emergency')) {
           setActiveTab('emergency');
+        } else if (pathname.includes('/gallery')) {
+          setActiveTab('gallery');
+        } else if (pathname.includes('/contact')) {
+          setActiveTab('contact');
         } else if (pathname === '/' || pathname === '') {
           setActiveTab('home');
         }
@@ -179,6 +191,10 @@ const AppContent: React.FC = () => {
         {activeTab === 'register' && <BecomeDonorSection />}
 
         {activeTab === 'emergency' && <EmergencyDirectory />}
+
+        {activeTab === 'gallery' && <GallerySection />}
+
+        {activeTab === 'contact' && <ContactSection />}
       </main>
 
       {/* Footer */}

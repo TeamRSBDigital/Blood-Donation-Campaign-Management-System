@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GalleryImage } from '../../types/index.js';
 import { useLanguage } from '../../context/LanguageContext.js';
-import { Image as ImageIcon, Calendar, ZoomIn, X } from 'lucide-react';
+import { Calendar, ZoomIn, X } from 'lucide-react';
 
 interface GallerySectionProps {
   images?: GalleryImage[];
@@ -48,16 +48,16 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images = [] }) =
   ];
 
   return (
-    <section className="py-12 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 transition-colors">
+    <section id="gallery-section" className="py-12 sm:py-16 bg-white border-b border-gray-200 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center max-w-2xl mx-auto space-y-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+          <span className="text-xs font-bold uppercase tracking-wider text-red-600">
             গ্যালারি ও অ্যাক্টিভিটি
           </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
             আমাদের কার্যক্রম ও স্মৃতির অ্যালবাম
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-xs sm:text-sm text-gray-600">
             পাংশা মডেল থানা ও রাজবাড়ীর বিভিন্ন স্থান থেকে পরিচালিত সেবামূলক ক্যাম্পেইনের একাংশ।
           </p>
         </div>
@@ -68,16 +68,16 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images = [] }) =
             <div
               key={img.id}
               onClick={() => setActiveLightbox(img)}
-              className="group relative bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-xl transition-all cursor-pointer"
+              className="group relative bg-white rounded-3xl overflow-hidden border border-gray-200 shadow-xs hover:shadow-xl transition-all cursor-pointer"
             >
-              <div className="w-full h-52 bg-slate-800 relative overflow-hidden">
+              <div className="w-full h-52 bg-gray-100 relative overflow-hidden">
                 <img
                   src={img.imageUrl}
                   alt={img.titleBn}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                   loading="lazy"
                 />
-                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                <div className="absolute inset-0 bg-gray-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                   <div className="p-3 bg-red-600/90 rounded-full shadow-lg">
                     <ZoomIn className="w-5 h-5" />
                   </div>
@@ -85,15 +85,15 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images = [] }) =
               </div>
 
               <div className="p-4 space-y-1">
-                <p className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2">
+                <p className="text-xs font-bold text-gray-900 line-clamp-2">
                   {img.titleBn}
                 </p>
-                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1">
-                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-semibold">
+                <div className="flex items-center justify-between text-[10px] text-gray-500 pt-1">
+                  <span className="px-2 py-0.5 rounded-md bg-gray-100 font-bold text-gray-700">
                     {img.category}
                   </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-red-500" />
+                  <span className="flex items-center gap-1 font-medium">
+                    <Calendar className="w-3 h-3 text-red-600" />
                     {img.date}
                   </span>
                 </div>
@@ -104,11 +104,11 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images = [] }) =
 
         {/* Lightbox Modal */}
         {activeLightbox && (
-          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="relative max-w-3xl w-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 text-white">
+          <div className="fixed inset-0 z-50 bg-gray-900/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="relative max-w-3xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-200 text-gray-900">
               <button
                 onClick={() => setActiveLightbox(null)}
-                className="absolute top-4 right-4 p-2 bg-slate-800/80 hover:bg-slate-700 text-white rounded-full z-10 transition-colors"
+                className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-full z-10 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -119,9 +119,9 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images = [] }) =
                 className="w-full max-h-[60vh] object-cover"
               />
 
-              <div className="p-6 space-y-2">
-                <h3 className="text-base font-bold">{activeLightbox.titleBn}</h3>
-                <p className="text-xs text-slate-400">{activeLightbox.titleEn}</p>
+              <div className="p-6 space-y-2 bg-white">
+                <h3 className="text-base font-bold text-gray-900">{activeLightbox.titleBn}</h3>
+                <p className="text-xs text-gray-500">{activeLightbox.titleEn}</p>
               </div>
             </div>
           </div>
