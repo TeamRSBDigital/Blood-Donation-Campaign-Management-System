@@ -679,17 +679,60 @@ export const SystemSettings: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  পুনরায় রক্তদানের বিরতি দিন (Eligibility Interval)
+                  পুরুষ রক্তদাতার বিরতি (Male Donation Interval - Days)
                 </label>
                 <input
                   type="number"
-                  min={60}
-                  max={120}
-                  value={formData.eligibilityIntervalDays}
-                  onChange={(e) => handleChange('eligibilityIntervalDays', Number(e.target.value))}
+                  min={30}
+                  max={180}
+                  value={formData.maleDonationIntervalDays ?? 90}
+                  onChange={(e) => handleChange('maleDonationIntervalDays', Number(e.target.value))}
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
                 />
-                <span className="text-[10px] text-slate-500">সাধারণত ৯০ দিন (৩ মাস) পর রক্তদাতা পুনরায় প্রস্তুত হন।</span>
+                <span className="text-[10px] text-slate-500">ডিফল্ট: ৯০ দিন (৩ মাস)</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  নারী রক্তদাতার বিরতি (Female Donation Interval - Days)
+                </label>
+                <input
+                  type="number"
+                  min={30}
+                  max={180}
+                  value={formData.femaleDonationIntervalDays ?? 120}
+                  onChange={(e) => handleChange('femaleDonationIntervalDays', Number(e.target.value))}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
+                />
+                <span className="text-[10px] text-slate-500">ডিফল্ট: ১২০ দিন (৪ মাস)</span>
+              </div>
+
+              <div className="md:col-span-2 pt-2 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">স্বয়ংক্রিয় উপযুক্ততা গণনাকারী</h4>
+                    <p className="text-[10px] text-slate-500">মেয়াদ পূর্ণ হলে ডোনারকে অটো-এভেইল্যাবল করবে</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formData.enableAutoEligibility ?? true}
+                    onChange={(e) => handleChange('enableAutoEligibility', e.target.checked)}
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">উপযুক্ততা রিমাইন্ডার নোটিফিকেশন</h4>
+                    <p className="text-[10px] text-slate-500">উপযুক্ত দিনে ড্যাশবোর্ডে ও টেলিগ্রামে অটো মেসেজ পাঠাবে</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formData.enableEligibilityReminder ?? true}
+                    onChange={(e) => handleChange('enableEligibilityReminder', e.target.checked)}
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
+                  />
+                </div>
               </div>
             </div>
           </div>

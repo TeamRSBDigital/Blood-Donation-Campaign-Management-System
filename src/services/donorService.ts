@@ -8,9 +8,20 @@ export interface DonorFilterParams {
   district?: string;
   gender?: string;
   status?: string;
+  verificationStatus?: string;
+  eligibility?: string;
   searchQuery?: string;
   availableOnly?: boolean;
   showTrash?: boolean;
+}
+
+export interface EligibilityStats {
+  verifiedCount: number;
+  pendingVerificationCount: number;
+  availableCount: number;
+  unavailableCount: number;
+  eligibleTodayCount: number;
+  eligibleThisWeekCount: number;
 }
 
 export const donorService = {
@@ -22,6 +33,8 @@ export const donorService = {
     if (filters?.district) params.append('district', filters.district);
     if (filters?.gender) params.append('gender', filters.gender);
     if (filters?.status) params.append('status', filters.status);
+    if (filters?.verificationStatus) params.append('verificationStatus', filters.verificationStatus);
+    if (filters?.eligibility) params.append('eligibility', filters.eligibility);
     if (filters?.searchQuery) params.append('searchQuery', filters.searchQuery);
     if (filters?.availableOnly) params.append('availableOnly', 'true');
     if (filters?.showTrash) params.append('showTrash', 'true');
@@ -100,5 +113,68 @@ export const donorService = {
     });
     if (res.error) return { importedCount: 0, error: res.error };
     return { importedCount: res.data?.importedCount || 0 };
+  },
+
+  // Verification & Eligibility API
+  async submitVerification(donorId: string, notes?: string): Promise<{ success: boolean; donor?: Donor; error?: string }> {
+    const res = await apiClient<{ success: boolean; message: string; donor: Donor }>(`/donors/${donorId}/verify/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ notes })
+    });
+    if (res.error) return { success: false, error: res.error };
+    return { success: true, donor: res.data?.donor };
+  },
+
+  async reviewVerification(donorId: string, notes?: string): Promise<{ success: boolean; donor?: Donor; error?: string }> {
+    const res = await apiClient<{ success: boolean; message: string; donor: Donor }>(`/donors/${donorId}/verify/review`, {
+      method: 'POST',
+      body: JSON.stringify({ notes })
+    });
+    if (res.error) return { success: false, error: res.error };
+    return { success: true, donor: res.data?.donor };
+  },
+
+  async approveVerification(donorId: string, notes?: string): Promise<{ success: boolean; donor?: Donor; error?: string }> {
+    const res = await apiClient<{ success: boolean; message: string; donor: Donor }>(`/donors/${donorId}/verify/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ notes })
+    });
+    if (res.error) return { success: false, error: res.error };
+    return { success: true, donor: res.data?.donor };
+  },
+
+  async rejectVerification(donorId: string, reason: string): Promise<{ success: boolean; donor?: Donor; error?: string }> {
+    const res = await apiClient<{ success: boolean; message: string; donor: Donor }>(`/donors/${donorId}/verify/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    });
+    if (res.error) return { success: false, error: res.error };
+    return { success: true, donor: res.data?.donor };
+  },
+
+  async updateAvailability(
+    donorId: string,
+    status: string,
+    tempInfo?: { tempStart?: string; tempEnd?: string; tempReason?: string; tempNotes?: string }
+  ): Promise<{ success: boolean; donor?: Donor; error?: string }> {
+    const res = await apiClient<{ success: boolean; message: string; donor: Donor }>(`/donors/${donorId}/availability`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, ...tempInfo })
+    });
+    if (res.error) return { success: false, error: res.error };
+    return { success: true, donor: res.data?.donor };
+  },
+
+  async getEligibilityStats(): Promise<EligibilityStats | null> {
+    const res = await apiClient<EligibilityStats>('/eligibility/stats');
+    return res.data || null;
+  },
+
+  async triggerEligibilityReminders(): Promise<{ notifiedCount: number; error?: string }> {
+    const res = await apiClient<{ notifiedCount: number }>('/eligibility/check-reminders', {
+      method: 'POST'
+    });
+    if (res.error) return { notifiedCount: 0, error: res.error };
+    return { notifiedCount: res.data?.notifiedCount || 0 };
   }
 };

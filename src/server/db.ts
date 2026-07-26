@@ -72,22 +72,113 @@ const DEFAULT_SUPERADMIN_PASSWORD_HASH = bcrypt.hashSync('superadmin123', 10);
 const DEFAULT_ADMIN_PASSWORD_HASH = bcrypt.hashSync('admin123', 10);
 const DEFAULT_VOLUNTEER_PASSWORD_HASH = bcrypt.hashSync('volunteer123', 10);
 
-// Helper to calculate donor status based on last donation date (90 days interval)
-export function calculateDonorStatus(lastDonationDate?: string, intervalDays = 90): AvailabilityStatus {
-  if (!lastDonationDate) return 'AVAILABLE';
-  
-  const lastDate = new Date(lastDonationDate);
-  if (isNaN(lastDate.getTime())) return 'AVAILABLE';
+export interface DonorEligibilityInfo {
+  isEligible: boolean;
+  nextEligibleDate?: string;
+  daysRemaining: number;
+  intervalDays: number;
+  status: AvailabilityStatus;
+}
 
-  const today = new Date();
-  const diffTime = Math.abs(today.getTime() - lastDate.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+export function calculateDonorEligibility(
+  donor: {
+    lastDonationDate?: string;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER';
+    status?: AvailabilityStatus;
+    canDonate?: boolean;
+    isAvailableOverride?: boolean;
+    tempUnavailableStart?: string;
+    tempUnavailableEnd?: string;
+  },
+  settings: SystemSettings
+): DonorEligibilityInfo {
+  const maleDays = settings.maleDonationIntervalDays ?? 90;
+  const femaleDays = settings.femaleDonationIntervalDays ?? 120;
+  const intervalDays = donor.gender === 'FEMALE' ? femaleDays : maleDays;
 
-  if (diffDays >= intervalDays) {
-    return 'AVAILABLE';
-  } else {
-    return 'RESTRICTED';
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayMs = new Date(todayStr).getTime();
+
+  let isTempExpired = false;
+  if (donor.status === 'TEMP_UNAVAILABLE' && donor.tempUnavailableEnd) {
+    const endMs = new Date(donor.tempUnavailableEnd.slice(0, 10)).getTime();
+    if (!isNaN(endMs) && todayMs > endMs) {
+      isTempExpired = true;
+    }
   }
+
+  if (!donor.lastDonationDate) {
+    let computedStatus: AvailabilityStatus = 'AVAILABLE';
+    if (donor.canDonate === false || donor.status === 'MEDICAL_HOLD') {
+      computedStatus = 'MEDICAL_HOLD';
+    } else if (donor.status === 'TEMP_UNAVAILABLE' && !isTempExpired) {
+      computedStatus = 'TEMP_UNAVAILABLE';
+    } else if (donor.status === 'UNAVAILABLE' || donor.isAvailableOverride === false) {
+      computedStatus = 'UNAVAILABLE';
+    }
+
+    return {
+      isEligible: computedStatus === 'AVAILABLE',
+      nextEligibleDate: todayStr,
+      daysRemaining: 0,
+      intervalDays,
+      status: computedStatus
+    };
+  }
+
+  const lastDate = new Date(donor.lastDonationDate.slice(0, 10));
+  if (isNaN(lastDate.getTime())) {
+    return {
+      isEligible: true,
+      nextEligibleDate: todayStr,
+      daysRemaining: 0,
+      intervalDays,
+      status: donor.status || 'AVAILABLE'
+    };
+  }
+
+  const nextEligibleMs = lastDate.getTime() + intervalDays * 24 * 60 * 60 * 1000;
+  const nextEligibleDate = new Date(nextEligibleMs).toISOString().slice(0, 10);
+
+  const diffMs = nextEligibleMs - todayMs;
+  const daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  const isCooldownOver = daysRemaining === 0;
+
+  let computedStatus: AvailabilityStatus = 'AVAILABLE';
+
+  if (donor.canDonate === false || donor.status === 'MEDICAL_HOLD') {
+    computedStatus = 'MEDICAL_HOLD';
+  } else if (donor.status === 'TEMP_UNAVAILABLE' && !isTempExpired) {
+    computedStatus = 'TEMP_UNAVAILABLE';
+  } else if (!isCooldownOver) {
+    computedStatus = 'UNAVAILABLE';
+  } else if (donor.isAvailableOverride === false) {
+    computedStatus = 'UNAVAILABLE';
+  } else {
+    computedStatus = 'AVAILABLE';
+  }
+
+  return {
+    isEligible: isCooldownOver && computedStatus === 'AVAILABLE',
+    nextEligibleDate,
+    daysRemaining,
+    intervalDays,
+    status: computedStatus
+  };
+}
+
+// Legacy helper for backwards compatibility
+export function calculateDonorStatus(
+  lastDonationDate?: string,
+  intervalDays = 90,
+  gender: 'MALE' | 'FEMALE' | 'OTHER' = 'MALE'
+): AvailabilityStatus {
+  const dummySettings: any = {
+    maleDonationIntervalDays: intervalDays,
+    femaleDonationIntervalDays: intervalDays,
+    eligibilityIntervalDays: intervalDays
+  };
+  return calculateDonorEligibility({ lastDonationDate, gender }, dummySettings).status;
 }
 
 const SEED_DATA: DatabaseSchema = {
@@ -112,6 +203,11 @@ const SEED_DATA: DatabaseSchema = {
     emergencyContactName: 'ড. মো: তানভীর আহমেদ',
     bloodRequestExpirationHours: 48,
     eligibilityIntervalDays: 90,
+    maleDonationIntervalDays: 90,
+    femaleDonationIntervalDays: 120,
+    enableAutoEligibility: true,
+    enableEligibilityReminder: true,
+    eligibilityReminderTime: '09:00',
 
     activeWhatsappProvider: 'CLOUD_API',
     activeTelegramProvider: 'BOT',
@@ -983,12 +1079,15 @@ export const dbService = {
     const changedKeys: string[] = [];
     const changeDetails: string[] = [];
 
+    const isIntervalChanged =
+      (newSettings.maleDonationIntervalDays !== undefined && newSettings.maleDonationIntervalDays !== prevSettings.maleDonationIntervalDays) ||
+      (newSettings.femaleDonationIntervalDays !== undefined && newSettings.femaleDonationIntervalDays !== prevSettings.femaleDonationIntervalDays);
+
     (Object.keys(newSettings) as Array<keyof SystemSettings>).forEach((key) => {
       if (newSettings[key] !== undefined && newSettings[key] !== prevSettings[key]) {
         changedKeys.push(key);
         const prevVal = prevSettings[key] !== undefined ? String(prevSettings[key]) : '(empty)';
         const newVal = newSettings[key] !== undefined ? String(newSettings[key]) : '(empty)';
-        // Mask secret tokens in audit log
         const isSecret = key.toLowerCase().includes('token') || key.toLowerCase().includes('password') || key.toLowerCase().includes('secret');
         const displayPrev = isSecret ? '***' : prevVal;
         const displayNew = isSecret ? '***' : newVal;
@@ -1001,11 +1100,12 @@ export const dbService = {
 
     if (changedKeys.length > 0) {
       const summaryText = `সিস্টেম সেটিংস হালনাগাদ করা হয়েছে (${changedKeys.length} টি পরিবর্তন): ${changeDetails.join(' | ')}`;
+      const logAction = isIntervalChanged ? 'DONATION_INTERVAL_CHANGED' : 'UPDATE_SYSTEM_SETTINGS';
       const log: AuditLog = {
         id: `log-${Date.now().toString().slice(-6)}`,
         actorName,
         actorRole: 'SUPER_ADMIN',
-        action: 'UPDATE_SYSTEM_SETTINGS',
+        action: logAction,
         details: summaryText,
         ipAddress: ipAddress || '127.0.0.1',
         timestamp: new Date().toISOString()
@@ -1028,6 +1128,8 @@ export const dbService = {
     district?: string;
     gender?: string;
     status?: string;
+    verificationStatus?: string;
+    eligibility?: string;
     searchQuery?: string;
     availableOnly?: boolean;
     showTrash?: boolean;
@@ -1041,21 +1143,17 @@ export const dbService = {
       list = list.filter(d => !d.isDeleted);
     }
 
-    // Re-verify donor availability status dynamically
+    // Re-verify donor availability and eligibility dynamically
     list = list.map(d => {
-      let finalStatus: AvailabilityStatus = d.status || 'AVAILABLE';
-      if (d.canDonate === false) {
-        finalStatus = 'RESTRICTED';
-      } else if (d.isAvailableOverride === false) {
-        finalStatus = 'RESTRICTED';
-      } else if (d.status === 'UNAVAILABLE' || d.status === 'TEMP_UNAVAILABLE') {
-        finalStatus = d.status;
-      } else {
-        finalStatus = calculateDonorStatus(d.lastDonationDate, db.settings.eligibilityIntervalDays);
-      }
+      const elig = calculateDonorEligibility(d, db.settings);
+      const vStatus: DonorVerificationStatus = d.verificationStatus || (d.isVerified ? 'VERIFIED' : 'PENDING');
       return {
         ...d,
-        status: finalStatus
+        verificationStatus: vStatus,
+        status: elig.status,
+        nextEligibleDate: elig.nextEligibleDate,
+        daysRemaining: elig.daysRemaining,
+        isEligible: elig.isEligible
       };
     });
 
@@ -1083,6 +1181,20 @@ export const dbService = {
       list = list.filter(d => d.status === filter.status);
     }
 
+    if (filter?.verificationStatus && filter.verificationStatus !== 'ALL') {
+      list = list.filter(d => d.verificationStatus === filter.verificationStatus);
+    }
+
+    if (filter?.eligibility && filter.eligibility !== 'ALL') {
+      if (filter.eligibility === 'ELIGIBLE_NOW') {
+        list = list.filter(d => d.isEligible === true);
+      } else if (filter.eligibility === 'IN_COOLDOWN') {
+        list = list.filter(d => (d.daysRemaining || 0) > 0);
+      } else if (filter.eligibility === 'ELIGIBLE_THIS_WEEK') {
+        list = list.filter(d => (d.daysRemaining || 0) <= 7);
+      }
+    }
+
     if (filter?.availableOnly) {
       list = list.filter(d => d.status === 'AVAILABLE');
     }
@@ -1108,11 +1220,9 @@ export const dbService = {
     // 3. Verified donors first
     // 4. Recently Updated
     list.sort((a, b) => {
-      // 1. Available donors first
       if (a.status === 'AVAILABLE' && b.status !== 'AVAILABLE') return -1;
       if (a.status !== 'AVAILABLE' && b.status === 'AVAILABLE') return 1;
 
-      // 2. Oldest Last Donation Date first (empty/null date treated as oldest)
       const dateA = a.lastDonationDate || '';
       const dateB = b.lastDonationDate || '';
       if (dateA !== dateB) {
@@ -1122,11 +1232,9 @@ export const dbService = {
         if (comp !== 0) return comp;
       }
 
-      // 3. Verified donors first
       if (a.isVerified && !b.isVerified) return -1;
       if (!a.isVerified && b.isVerified) return 1;
 
-      // 4. Recently Updated (descending)
       const updateA = a.updatedAt || '';
       const updateB = b.updatedAt || '';
       return updateB.localeCompare(updateA);
@@ -1138,19 +1246,15 @@ export const dbService = {
   getDonorById(id: string): Donor | undefined {
     const d = db.donors.find(item => item.id === id);
     if (!d) return undefined;
-    let finalStatus: AvailabilityStatus = d.status || 'AVAILABLE';
-    if (d.canDonate === false) {
-      finalStatus = 'RESTRICTED';
-    } else if (d.isAvailableOverride === false) {
-      finalStatus = 'RESTRICTED';
-    } else if (d.status === 'UNAVAILABLE' || d.status === 'TEMP_UNAVAILABLE') {
-      finalStatus = d.status;
-    } else {
-      finalStatus = calculateDonorStatus(d.lastDonationDate, db.settings.eligibilityIntervalDays);
-    }
+    const elig = calculateDonorEligibility(d, db.settings);
+    const vStatus: DonorVerificationStatus = d.verificationStatus || (d.isVerified ? 'VERIFIED' : 'PENDING');
     return {
       ...d,
-      status: finalStatus
+      verificationStatus: vStatus,
+      status: elig.status,
+      nextEligibleDate: elig.nextEligibleDate,
+      daysRemaining: elig.daysRemaining,
+      isEligible: elig.isEligible
     };
   },
 
@@ -1288,6 +1392,250 @@ export const dbService = {
     }
 
     return count;
+  },
+
+  // Verification & Eligibility Methods
+  submitDonorVerification(
+    donorId: string,
+    notes: string,
+    submitter: { id: string; name: string; role: UserRole; phone?: string; email?: string }
+  ): { success: boolean; message: string; donor?: Donor } {
+    const donor = db.donors.find(d => d.id === donorId);
+    if (!donor) return { success: false, message: 'রক্তদাতা পাওয়া যায়নি' };
+
+    // Security Rule: Volunteers and Admins cannot verify themselves
+    if (
+      (submitter.phone && donor.phone && submitter.phone.trim() === donor.phone.trim()) ||
+      (submitter.email && donor.email && submitter.email.trim().toLowerCase() === donor.email.trim().toLowerCase()) ||
+      submitter.id === donor.id
+    ) {
+      return { success: false, message: 'সিকিউরিটি অ্যালার্ট: আপনি নিজের রক্তদাতা ভেরিফিকেশন আবেদন করতে বা নিজের একাউন্ট ভেরিফাই করতে পারবেন না।' };
+    }
+
+    const now = new Date().toISOString();
+    donor.verificationStatus = 'PENDING';
+    donor.verificationSubmittedBy = submitter.name;
+    donor.verificationSubmittedRole = submitter.role;
+    donor.verificationSubmittedAt = now;
+    donor.verificationNotes = notes;
+    donor.updatedAt = now;
+
+    saveDatabase();
+
+    this.addAuditLog(
+      submitter.name,
+      submitter.role,
+      'VERIFICATION_SUBMITTED',
+      `রক্তদাতার ভেরিফিকেশন আবেদন জমা হয়েছে: ${donor.name} (রক্তের গ্রুপ: ${donor.bloodGroup})`
+    );
+
+    return {
+      success: true,
+      message: 'রক্তদাতার ভেরিফিকেশন আবেদন সফলভাবে জমা দেওয়া হয়েছে। এডমিনের পর্যালোচনার অপেক্ষায় রয়েছে।',
+      donor: this.getDonorById(donorId)
+    };
+  },
+
+  reviewDonorVerification(
+    donorId: string,
+    notes: string,
+    reviewer: { id: string; name: string; role: UserRole }
+  ): { success: boolean; message: string; donor?: Donor } {
+    const donor = db.donors.find(d => d.id === donorId);
+    if (!donor) return { success: false, message: 'রক্তদাতা পাওয়া যায়নি' };
+
+    const now = new Date().toISOString();
+    donor.verificationReviewedBy = reviewer.name;
+    donor.verificationReviewedAt = now;
+    if (notes) donor.verificationNotes = notes;
+    donor.updatedAt = now;
+
+    saveDatabase();
+
+    this.addAuditLog(
+      reviewer.name,
+      reviewer.role,
+      'VERIFICATION_REVIEWED',
+      `রক্তদাতার ভেরিফিকেশন রিভিউ করা হয়েছে: ${donor.name} (${reviewer.name} দ্বারা)`
+    );
+
+    return {
+      success: true,
+      message: 'ভেরিফিকেশন প্রাথমিক পর্যালোচনা সম্পন্ন। সুপার এডমিনের ফাইনাল এপ্রুভালের জন্য অপেক্ষা করছে।',
+      donor: this.getDonorById(donorId)
+    };
+  },
+
+  approveDonorVerification(
+    donorId: string,
+    notes: string,
+    approver: { id: string; name: string; role: UserRole; phone?: string; email?: string }
+  ): { success: boolean; message: string; donor?: Donor } {
+    const donor = db.donors.find(d => d.id === donorId);
+    if (!donor) return { success: false, message: 'রক্তদাতা পাওয়া যায়নি' };
+
+    // Security Rule 1: Only Super Admin can approve final verification
+    if (approver.role !== 'SUPER_ADMIN') {
+      return { success: false, message: 'সিকিউরিটি অ্যালার্ট: শুধুমাত্র সুপার এডমিন রক্তদাতার চূড়ান্ত ভেরিফিকেশন অনুমোদন করতে পারেন।' };
+    }
+
+    // Security Rule 2: Super Admin cannot approve themselves
+    if (
+      (approver.phone && donor.phone && approver.phone.trim() === donor.phone.trim()) ||
+      (approver.email && donor.email && approver.email.trim().toLowerCase() === donor.email.trim().toLowerCase()) ||
+      approver.id === donor.id
+    ) {
+      return { success: false, message: 'সিকিউরিটি অ্যালার্ট: নিজের রক্তদাতা একাউন্ট নিজে অনুমোদন দেওয়া নিষিদ্ধ।' };
+    }
+
+    const now = new Date().toISOString();
+    donor.isVerified = true;
+    donor.verificationStatus = 'VERIFIED';
+    donor.verifiedBy = approver.name;
+    donor.verifiedAt = now;
+    if (notes) donor.verificationNotes = notes;
+    donor.updatedAt = now;
+
+    saveDatabase();
+
+    this.addAuditLog(
+      approver.name,
+      approver.role,
+      'VERIFICATION_APPROVED',
+      `রক্তদাতার ভেরিফিকেশন অনুমোদন করা হয়েছে: ${donor.name} (অনুমোদনকারী: ${approver.name})`
+    );
+
+    return {
+      success: true,
+      message: 'রক্তদাতার ভেরিফিকেশন সফলভাবে অনুমোদিত এবং ব্যাজ প্রদান করা হয়েছে।',
+      donor: this.getDonorById(donorId)
+    };
+  },
+
+  rejectDonorVerification(
+    donorId: string,
+    reason: string,
+    reviewer: { id: string; name: string; role: UserRole }
+  ): { success: boolean; message: string; donor?: Donor } {
+    const donor = db.donors.find(d => d.id === donorId);
+    if (!donor) return { success: false, message: 'রক্তদাতা পাওয়া যায়নি' };
+
+    const now = new Date().toISOString();
+    donor.isVerified = false;
+    donor.verificationStatus = 'REJECTED';
+    donor.rejectionReason = reason;
+    donor.verificationReviewedBy = reviewer.name;
+    donor.verificationReviewedAt = now;
+    donor.updatedAt = now;
+
+    saveDatabase();
+
+    this.addAuditLog(
+      reviewer.name,
+      reviewer.role,
+      'VERIFICATION_REJECTED',
+      `রক্তদাতার ভেরিফিকেশন বাতিল করা হয়েছে: ${donor.name} (কারণ: ${reason})`
+    );
+
+    return {
+      success: true,
+      message: 'রক্তদাতার ভেরিফিকেশন আবেদন বাতিল করা হয়েছে।',
+      donor: this.getDonorById(donorId)
+    };
+  },
+
+  updateDonorAvailability(
+    donorId: string,
+    newStatus: AvailabilityStatus,
+    tempInfo?: { start?: string; end?: string; reason?: TempUnavailableReason; notes?: string },
+    actorName?: string
+  ): { success: boolean; message: string; donor?: Donor } {
+    const donor = db.donors.find(d => d.id === donorId);
+    if (!donor) return { success: false, message: 'রক্তদাতা পাওয়া যায়নি' };
+
+    const prevStatus = donor.status;
+    const now = new Date().toISOString();
+
+    donor.status = newStatus;
+    if (newStatus === 'TEMP_UNAVAILABLE' && tempInfo) {
+      donor.tempUnavailableStart = tempInfo.start || now.slice(0, 10);
+      donor.tempUnavailableEnd = tempInfo.end;
+      donor.tempUnavailableReason = tempInfo.reason || 'OTHER';
+      donor.tempUnavailableNotes = tempInfo.notes;
+    } else if (newStatus === 'AVAILABLE') {
+      delete donor.tempUnavailableStart;
+      delete donor.tempUnavailableEnd;
+      delete donor.tempUnavailableReason;
+      delete donor.tempUnavailableNotes;
+    }
+    donor.updatedAt = now;
+
+    saveDatabase();
+
+    this.addAuditLog(
+      actorName || 'ADMIN',
+      'ADMIN',
+      'AVAILABILITY_CHANGED',
+      `রক্তদাতার অ্যাভেইল্যাবেলিটি স্ট্যাটাস পরিবর্তন: ${donor.name} (${prevStatus} ➔ ${newStatus})`
+    );
+
+    return {
+      success: true,
+      message: 'রক্তদাতার অ্যাভেইল্যাবেলিটি স্ট্যাটাস সফলভাবে পরিবর্তন করা হয়েছে।',
+      donor: this.getDonorById(donorId)
+    };
+  },
+
+  getDonorEligibilityStats() {
+    const donors = this.getDonors();
+    const verifiedCount = donors.filter(d => d.verificationStatus === 'VERIFIED' || d.isVerified).length;
+    const pendingVerificationCount = donors.filter(d => d.verificationStatus === 'PENDING').length;
+    const availableCount = donors.filter(d => d.status === 'AVAILABLE').length;
+    const unavailableCount = donors.filter(d => d.status === 'UNAVAILABLE' || d.status === 'TEMP_UNAVAILABLE' || d.status === 'MEDICAL_HOLD').length;
+    const eligibleTodayCount = donors.filter(d => d.isEligible).length;
+    const eligibleThisWeekCount = donors.filter(d => (d.daysRemaining || 0) <= 7).length;
+
+    return {
+      verifiedCount,
+      pendingVerificationCount,
+      availableCount,
+      unavailableCount,
+      eligibleTodayCount,
+      eligibleThisWeekCount
+    };
+  },
+
+  checkEligibleDonorsAndNotify(): { notifiedCount: number; eligibleDonors: Donor[] } {
+    const donors = this.getDonors();
+    const eligibleToday = donors.filter(d => d.isEligible && d.daysRemaining === 0);
+
+    if (eligibleToday.length > 0) {
+      const now = new Date().toISOString();
+      const notifMessage = `আজকে মোট ${eligibleToday.length} জন রক্তদাতা রক্তদানে প্রস্তুত এবং উপযুক্ত হয়েছেন।`;
+
+      const newNotif: Notification = {
+        id: `notif-elig-${Date.now().toString().slice(-6)}`,
+        type: 'DONOR_ALERT',
+        title: '🩸 রক্তদানে নতুন উপযুক্ত রক্তদাতা অ্যালার্ট',
+        message: notifMessage,
+        recipientRole: 'VOLUNTEER',
+        isRead: false,
+        createdAt: now,
+        linkUrl: '/admin?tab=donors&filter=eligible'
+      };
+      db.notifications.unshift(newNotif);
+
+      this.addAuditLog(
+        'System Engine',
+        'SYSTEM',
+        'ELIGIBILITY_UPDATED',
+        `রক্তদাতা উপযুক্ততা রিমাইন্ডার ইঞ্জিন ট্রিগার হয়েছে: ${eligibleToday.length} জন উপযুক্ত রক্তদাতা পাওয়া গেছে`
+      );
+
+      saveDatabase();
+    }
+
+    return { notifiedCount: eligibleToday.length, eligibleDonors: eligibleToday };
   },
 
   // Donation History

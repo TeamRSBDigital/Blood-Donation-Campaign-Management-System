@@ -51,7 +51,12 @@ export const DonorManagement: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedGender, setSelectedGender] = useState<string>('ALL');
   const [selectedUpazila, setSelectedUpazila] = useState<string>('ALL');
+  const [selectedVerificationStatus, setSelectedVerificationStatus] = useState<string>('ALL');
+  const [selectedEligibility, setSelectedEligibility] = useState<string>('ALL');
   const [showTrash, setShowTrash] = useState(false);
+
+  // Eligibility Stats State
+  const [eligStats, setEligStats] = useState<any>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -80,7 +85,7 @@ export const DonorManagement: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Fetch Donors
+  // Fetch Donors & Stats
   const fetchDonors = async () => {
     setLoading(true);
     try {
@@ -89,11 +94,17 @@ export const DonorManagement: React.FC = () => {
         upazila: selectedUpazila !== 'ALL' ? selectedUpazila : undefined,
         gender: selectedGender !== 'ALL' ? selectedGender : undefined,
         status: selectedStatus !== 'ALL' ? selectedStatus : undefined,
+        verificationStatus: selectedVerificationStatus !== 'ALL' ? selectedVerificationStatus : undefined,
+        eligibility: selectedEligibility !== 'ALL' ? selectedEligibility : undefined,
         searchQuery: searchQuery.trim() || undefined,
         showTrash
       };
-      const list = await donorService.getAllDonors(filters);
+      const [list, statsData] = await Promise.all([
+        donorService.getAllDonors(filters),
+        donorService.getEligibilityStats()
+      ]);
       setDonors(list);
+      setEligStats(statsData);
     } catch (err) {
       console.error('Failed to fetch donors:', err);
       showToast('রক্তদাতাদের তালিকা লোড করা যায়নি', 'error');
@@ -105,7 +116,7 @@ export const DonorManagement: React.FC = () => {
   useEffect(() => {
     fetchDonors();
     setSelectedIds([]);
-  }, [selectedBloodGroup, selectedUpazila, selectedGender, selectedStatus, showTrash, refreshKey]);
+  }, [selectedBloodGroup, selectedUpazila, selectedGender, selectedStatus, selectedVerificationStatus, selectedEligibility, showTrash, refreshKey]);
 
   // Handle Search Input (debounced / instant)
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,6 +203,26 @@ export const DonorManagement: React.FC = () => {
       } finally {
         setDeletingId(null);
       }
+    }
+  };
+
+  // Verification Workflow Handler
+  const handleVerifyAction = async (donorId: string, action: 'submit' | 'review' | 'approve' | 'reject', notesOrReason?: string) => {
+    try {
+      let res;
+      if (action === 'submit') res = await donorService.submitVerification(donorId, notesOrReason);
+      else if (action === 'review') res = await donorService.reviewVerification(donorId, notesOrReason);
+      else if (action === 'approve') res = await donorService.approveVerification(donorId, notesOrReason);
+      else if (action === 'reject') res = await donorService.rejectVerification(donorId, notesOrReason || 'যাচাইকরণ প্রত্যাখ্যাত');
+
+      if (res?.success) {
+        showToast('ভেরিফিকেশন স্ট্যাটাস সফলভাবে আপডেট করা হয়েছে');
+        setRefreshKey(k => k + 1);
+      } else {
+        showToast(res?.error || 'ভেরিফিকেশন প্রসেস করতে ব্যর্থ', 'error');
+      }
+    } catch (err) {
+      showToast('ভেরিফিকেশনে ত্রুটি ঘটেছে', 'error');
     }
   };
 
@@ -337,45 +368,65 @@ export const DonorManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center gap-3">
-          <div className="p-3 bg-red-50 dark:bg-red-950/50 rounded-2xl text-red-600">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] text-slate-400 block font-bold uppercase">মোট রক্তদাতা</span>
-            <span className="text-xl font-black text-slate-900 dark:text-white">{stats.total} জন</span>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center gap-3">
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 rounded-2xl text-emerald-600">
+      {/* Stats Summary Cards (Verification & Eligibility Engine) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+          <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 rounded-2xl text-emerald-600 shrink-0">
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 block font-bold uppercase">রক্তদানে প্রস্তুত</span>
-            <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">{stats.available} জন</span>
+            <span className="text-[10px] text-slate-400 block font-bold uppercase">ভেরিফাইড ডোনার</span>
+            <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{eligStats?.verifiedCount ?? 0} জন</span>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center gap-3">
-          <div className="p-3 bg-purple-50 dark:bg-purple-950/50 rounded-2xl text-purple-600">
-            <Droplet className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] text-slate-400 block font-bold uppercase">বিরল গ্রুপ (Rare)</span>
-            <span className="text-xl font-black text-purple-600 dark:text-purple-400">{stats.rare} জন</span>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center gap-3">
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/50 rounded-2xl text-amber-600">
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/50 rounded-2xl text-amber-600 shrink-0">
             <ShieldAlert className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 block font-bold uppercase">ফিল্টারড আইটেম</span>
-            <span className="text-xl font-black text-slate-900 dark:text-white">{filteredDonors.length} জন</span>
+            <span className="text-[10px] text-slate-400 block font-bold uppercase">ভেরিফিকেশন অপেক্ষমান</span>
+            <span className="text-lg font-black text-amber-600 dark:text-amber-400">{eligStats?.pendingVerificationCount ?? 0} জন</span>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+          <div className="p-2.5 bg-blue-50 dark:bg-blue-950/50 rounded-2xl text-blue-600 shrink-0">
+            <Users className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block font-bold uppercase">প্রস্তুত (Available)</span>
+            <span className="text-lg font-black text-blue-600 dark:text-blue-400">{eligStats?.availableCount ?? 0} জন</span>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+          <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 shrink-0">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block font-bold uppercase">অপ্রস্তুত / কুলডাউন</span>
+            <span className="text-lg font-black text-slate-700 dark:text-slate-300">{eligStats?.unavailableCount ?? 0} জন</span>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+          <div className="p-2.5 bg-rose-50 dark:bg-rose-950/50 rounded-2xl text-rose-600 shrink-0">
+            <Droplet className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block font-bold uppercase">আজ উপযুক্ত</span>
+            <span className="text-lg font-black text-rose-600 dark:text-rose-400">{eligStats?.eligibleTodayCount ?? 0} জন</span>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+          <div className="p-2.5 bg-purple-50 dark:bg-purple-950/50 rounded-2xl text-purple-600 shrink-0">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block font-bold uppercase">চলতি সপ্তাহে উপযুক্ত</span>
+            <span className="text-lg font-black text-purple-600 dark:text-purple-400">{eligStats?.eligibleThisWeekCount ?? 0} জন</span>
           </div>
         </div>
       </div>
@@ -451,7 +502,7 @@ export const DonorManagement: React.FC = () => {
         </div>
 
         {/* Dropdown Filters */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
           {/* Blood Group */}
           <div>
             <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">রক্তের গ্রুপ</label>
@@ -469,7 +520,7 @@ export const DonorManagement: React.FC = () => {
 
           {/* Availability Status */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">স্ট্যাটাস</label>
+            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">প্রস্তুতি স্ট্যাটাস</label>
             <select
               value={selectedStatus}
               onChange={e => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
@@ -479,7 +530,38 @@ export const DonorManagement: React.FC = () => {
               <option value="AVAILABLE">প্রস্তুত (Available)</option>
               <option value="UNAVAILABLE">সাময়িক অনুপস্থিত</option>
               <option value="TEMP_UNAVAILABLE">অসুস্থতা / ব্রেক</option>
-              <option value="RESTRICTED">মেডিকেল কারণে বাধা</option>
+              <option value="MEDICAL_HOLD">মেডিকেল হোল্ড</option>
+            </select>
+          </div>
+
+          {/* Verification Status */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">ভেরিফিকেশন</label>
+            <select
+              value={selectedVerificationStatus}
+              onChange={e => { setSelectedVerificationStatus(e.target.value); setCurrentPage(1); }}
+              className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+            >
+              <option value="ALL">সকল ভেরিফিকেশন</option>
+              <option value="VERIFIED">✓ ভেরিফাইড (Verified)</option>
+              <option value="PENDING">⏳ পেন্ডিং (Pending)</option>
+              <option value="REJECTED">✕ রিজেক্টেড (Rejected)</option>
+              <option value="ARCHIVED">📁 আর্কাইভড (Archived)</option>
+            </select>
+          </div>
+
+          {/* Eligibility Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">উপযুক্ততা</label>
+            <select
+              value={selectedEligibility}
+              onChange={e => { setSelectedEligibility(e.target.value); setCurrentPage(1); }}
+              className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+            >
+              <option value="ALL">সকল উপযুক্ততা</option>
+              <option value="ELIGIBLE_NOW">আজ রক্তদানে উপযুক্ত</option>
+              <option value="ELIGIBLE_THIS_WEEK">চলতি সপ্তাহে উপযুক্ত</option>
+              <option value="IN_COOLDOWN">কুলডাউনে রয়েছে</option>
             </select>
           </div>
 
@@ -656,24 +738,51 @@ export const DonorManagement: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Status */}
-                      <td className="p-4">
-                        {isAvailable ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px]">
-                            <CheckCircle2 className="w-3 h-3" />
-                            প্রস্তুত
-                          </span>
-                        ) : d.status === 'RESTRICTED' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-extrabold text-[10px]">
-                            <ShieldAlert className="w-3 h-3" />
-                            নিষিদ্ধ
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-extrabold text-[10px]">
-                            <Clock className="w-3 h-3" />
-                            অনুপস্থিত
-                          </span>
-                        )}
+                      {/* Status & Eligibility */}
+                      <td className="p-4 space-y-1">
+                        {/* Availability & Eligibility */}
+                        <div className="flex items-center gap-1">
+                          {isAvailable ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px]">
+                              <CheckCircle2 className="w-3 h-3" />
+                              প্রস্তুত
+                            </span>
+                          ) : d.status === 'RESTRICTED' || d.status === 'MEDICAL_HOLD' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-extrabold text-[10px]">
+                              <ShieldAlert className="w-3 h-3" />
+                              মেডিকেল হোল্ড
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-extrabold text-[10px]">
+                              <Clock className="w-3 h-3" />
+                              {d.daysRemaining && d.daysRemaining > 0 ? `কুলডাউন (${d.daysRemaining} দিন)` : 'অনুপস্থিত'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Verification Status Badge */}
+                        <div>
+                          {d.verificationStatus === 'VERIFIED' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                              <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                              ভেরিফাইড ডোনার
+                            </span>
+                          ) : d.verificationStatus === 'PENDING' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-600 dark:text-amber-400">
+                              <Clock className="w-3 h-3 text-amber-500" />
+                              ভেরিফিকেশন পেন্ডিং
+                            </span>
+                          ) : d.verificationStatus === 'REJECTED' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-red-600 dark:text-red-400">
+                              <ShieldAlert className="w-3 h-3 text-red-500" />
+                              বাতিলকৃত (Rejected)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                              আর্কাইভড
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Actions */}
@@ -701,6 +810,42 @@ export const DonorManagement: React.FC = () => {
                             </>
                           ) : (
                             <>
+                              {/* Verification Action Workflow Buttons */}
+                              {d.verificationStatus === 'PENDING' && (
+                                <>
+                                  {user?.role === 'SUPER_ADMIN' && (
+                                    <button
+                                      onClick={() => handleVerifyAction(d.id, 'approve')}
+                                      className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs"
+                                      title="চূড়ান্ত ভেরিফিকেশন অনুমোদন করুন (Super Admin Only)"
+                                    >
+                                      <ShieldCheck className="w-3.5 h-3.5" />
+                                      অ্যাপ্রুভ
+                                    </button>
+                                  )}
+                                  {user?.role === 'ADMIN' && (
+                                    <button
+                                      onClick={() => handleVerifyAction(d.id, 'review')}
+                                      className="px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs"
+                                      title="রিভিউ সম্পন্ন করুন"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                      রিভিউ
+                                    </button>
+                                  )}
+                                  {user?.role === 'VOLUNTEER' && (
+                                    <button
+                                      onClick={() => handleVerifyAction(d.id, 'submit')}
+                                      className="px-2.5 py-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs"
+                                      title="ভেরিফিকেশনের জন্য সাবমিট করুন"
+                                    >
+                                      <Send className="w-3.5 h-3.5" />
+                                      সাবমিট
+                                    </button>
+                                  )}
+                                </>
+                              )}
+
                               <button
                                 onClick={() => setViewingDonor(d)}
                                 className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 font-bold"

@@ -8,7 +8,11 @@ export type RequestPriority = 'NORMAL' | 'URGENT' | 'CRITICAL';
 
 export type RequestStatus = 'PENDING' | 'SEARCHING' | 'MATCHED' | 'FULFILLED' | 'COMPLETED' | 'CANCELLED' | 'APPROVED';
 
-export type AvailabilityStatus = 'AVAILABLE' | 'UNAVAILABLE' | 'TEMP_UNAVAILABLE' | 'RESTRICTED';
+export type AvailabilityStatus = 'AVAILABLE' | 'UNAVAILABLE' | 'TEMP_UNAVAILABLE' | 'MEDICAL_HOLD' | 'RESTRICTED';
+
+export type DonorVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED' | 'ARCHIVED';
+
+export type TempUnavailableReason = 'SICK' | 'TRAVEL' | 'PERSONAL' | 'MEDICAL_RESTRICTION' | 'OTHER';
 
 export interface User {
   id: string;
@@ -60,9 +64,27 @@ export interface Donor {
   union: string;
   village: string;
   lastDonationDate?: string; // ISO YYYY-MM-DD
+  nextEligibleDate?: string; // Auto calculated
+  daysRemaining?: number; // Auto calculated
+  isEligible?: boolean; // Auto calculated
   totalDonations: number;
   isVerified: boolean;
+  verificationStatus?: DonorVerificationStatus;
+  verificationSubmittedBy?: string;
+  verificationSubmittedRole?: UserRole;
+  verificationSubmittedAt?: string;
+  verificationReviewedBy?: string;
+  verificationReviewedAt?: string;
+  verifiedBy?: string;
+  verifiedAt?: string;
+  verificationNotes?: string;
+  rejectionReason?: string;
   isAvailableOverride?: boolean;
+  status: AvailabilityStatus;
+  tempUnavailableStart?: string;
+  tempUnavailableEnd?: string;
+  tempUnavailableReason?: TempUnavailableReason;
+  tempUnavailableNotes?: string;
   hemoglobinLevel?: string;
   bpNotes?: string;
   hasDiabetes?: boolean;
@@ -73,7 +95,6 @@ export interface Donor {
   emergencyContactName?: string;
   emergencyContactRelation?: string;
   emergencyContactPhone?: string;
-  status: AvailabilityStatus;
   isDeleted?: boolean;
   deletedAt?: string;
   createdBy?: string;
@@ -254,12 +275,17 @@ export interface SystemSettings {
   timezone?: string;
   language?: string;
 
-  // Organization Settings
+  // Organization & Eligibility Settings
   defaultDistrict?: string;
   defaultUpazila?: string;
   emergencyContactName?: string;
   bloodRequestExpirationHours?: number;
   eligibilityIntervalDays: number;
+  maleDonationIntervalDays?: number;
+  femaleDonationIntervalDays?: number;
+  enableAutoEligibility?: boolean;
+  enableEligibilityReminder?: boolean;
+  eligibilityReminderTime?: string;
 
   // Notification Provider Settings
   activeWhatsappProvider?: 'CLOUD_API' | 'QR_SESSION';

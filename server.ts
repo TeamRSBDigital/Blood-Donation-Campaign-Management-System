@@ -518,6 +518,83 @@ async function startServer() {
     res.json(result);
   });
 
+  // Donor Verification & Eligibility Endpoints
+  app.get('/api/eligibility/stats', authMiddleware, (req: any, res: any) => {
+    const stats = dbService.getDonorEligibilityStats();
+    res.json(stats);
+  });
+
+  app.post('/api/eligibility/check-reminders', authMiddleware, (req: any, res: any) => {
+    const result = dbService.checkEligibleDonorsAndNotify();
+    res.json(result);
+  });
+
+  app.post('/api/donors/:id/verify/submit', authMiddleware, (req: any, res: any) => {
+    const { notes } = req.body;
+    const submitter = {
+      id: req.user.id,
+      name: req.user.name,
+      role: req.user.role,
+      phone: req.user.phone,
+      email: req.user.email
+    };
+    const result = dbService.submitDonorVerification(req.params.id, notes || '', submitter);
+    if (!result.success) return res.status(400).json({ error: result.message });
+    res.json(result);
+  });
+
+  app.post('/api/donors/:id/verify/review', authMiddleware, (req: any, res: any) => {
+    const { notes } = req.body;
+    const reviewer = {
+      id: req.user.id,
+      name: req.user.name,
+      role: req.user.role
+    };
+    const result = dbService.reviewDonorVerification(req.params.id, notes || '', reviewer);
+    if (!result.success) return res.status(400).json({ error: result.message });
+    res.json(result);
+  });
+
+  app.post('/api/donors/:id/verify/approve', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const { notes } = req.body;
+    const approver = {
+      id: req.user.id,
+      name: req.user.name,
+      role: req.user.role,
+      phone: req.user.phone,
+      email: req.user.email
+    };
+    const result = dbService.approveDonorVerification(req.params.id, notes || '', approver);
+    if (!result.success) return res.status(400).json({ error: result.message });
+    res.json(result);
+  });
+
+  app.post('/api/donors/:id/verify/reject', authMiddleware, (req: any, res: any) => {
+    const { reason } = req.body;
+    if (!reason) return res.status(400).json({ error: 'বাতিল করার কারণ উল্লেখ করা আবশ্যক' });
+    const reviewer = {
+      id: req.user.id,
+      name: req.user.name,
+      role: req.user.role
+    };
+    const result = dbService.rejectDonorVerification(req.params.id, reason, reviewer);
+    if (!result.success) return res.status(400).json({ error: result.message });
+    res.json(result);
+  });
+
+  app.put('/api/donors/:id/availability', authMiddleware, (req: any, res: any) => {
+    const { status, tempStart, tempEnd, tempReason, tempNotes } = req.body;
+    if (!status) return res.status(400).json({ error: 'অ্যাভেইল্যাবেলিটি স্ট্যাটাস আবশ্যক' });
+    const result = dbService.updateDonorAvailability(
+      req.params.id,
+      status,
+      { start: tempStart, end: tempEnd, reason: tempReason, notes: tempNotes },
+      req.user.name
+    );
+    if (!result.success) return res.status(400).json({ error: result.message });
+    res.json(result);
+  });
+
   // Admin Blood Request Status Update
   app.put('/api/requests/:id', authMiddleware, (req: any, res: any) => {
     const existingReq = dbService.getBloodRequestById(req.params.id);
