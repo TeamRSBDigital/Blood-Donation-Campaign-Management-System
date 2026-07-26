@@ -215,12 +215,26 @@ export interface EmergencyContact {
 
 export interface AuditLog {
   id: string;
-  actorName: string;
-  actorRole: UserRole;
   action: string;
+  module?: string;
   details: string;
+  actorName: string;
+  actorRole: UserRole | 'SYSTEM' | 'GUEST';
+  actorEmail?: string;
+  targetRecordId?: string;
+  targetRecordType?: string;
+  oldValue?: Record<string, any> | string | null;
+  newValue?: Record<string, any> | string | null;
   ipAddress?: string;
+  browser?: string;
+  os?: string;
+  deviceType?: string;
+  requestUrl?: string;
+  status?: 'SUCCESS' | 'FAILED' | 'WARNING';
   timestamp: string;
+  // Legacy alias support
+  userName?: string;
+  userId?: string;
 }
 
 export interface SystemSettings {

@@ -62,7 +62,23 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
   const { t } = useLanguage();
   const { theme, setThemeMode } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<string>('overview');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname.toLowerCase();
+      const searchParams = new URLSearchParams(window.location.search);
+      const tabParam = searchParams.get('tab') || searchParams.get('page');
+      if (
+        pathname.includes('activity-logs') ||
+        pathname.includes('audit-logs') ||
+        pathname.includes('audit') ||
+        tabParam === 'activity-logs' ||
+        tabParam === 'audit'
+      ) {
+        return 'audit';
+      }
+    }
+    return 'overview';
+  });
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -123,7 +139,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
     },
     {
       id: 'audit',
-      label: 'অডিট লোগ',
+      label: 'এক্টিভিটি লোগ ও অডিট ট্রেইল',
       icon: ShieldAlert,
       requiredRoles: ['SUPER_ADMIN'],
     },
@@ -159,12 +175,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       const isRestrictedPath =
         activeTab === 'settings' ||
         activeTab === 'telegram' ||
+        activeTab === 'audit' ||
         tabParam === 'settings' ||
         tabParam === 'telegram' ||
+        tabParam === 'activity-logs' ||
+        tabParam === 'audit' ||
         pathname.includes('/settings') ||
         pathname.includes('/telegram') ||
+        pathname.includes('/activity-logs') ||
+        pathname.includes('/audit') ||
         hash.includes('settings') ||
-        hash.includes('telegram');
+        hash.includes('telegram') ||
+        hash.includes('activity-logs');
 
       if (isRestrictedPath && currentUserRole !== 'SUPER_ADMIN') {
         setActiveTab('overview');

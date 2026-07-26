@@ -593,12 +593,130 @@ const SEED_DATA: DatabaseSchema = {
   ],
   auditLogs: [
     {
-      id: 'log-1',
+      id: 'LOG-100234',
+      action: 'USER_LOGIN',
+      module: 'AUTH',
+      details: 'সুপার এডমিন অ্যাকাউন্ট সফলভাবে ড্যাশবোর্ডে লগইন করেছেন।',
       actorName: 'ড. মো: তানভীর আহমেদ',
       actorRole: 'SUPER_ADMIN',
-      action: 'SYSTEM_INIT',
-      details: 'পাংশা ব্লাড ডোনার্স এসোসিয়েশন ডাটাবেজ সিস্টেম চালু করা হয়েছে।',
-      timestamp: '2026-07-25T10:00:00.000Z'
+      actorEmail: 'superadmin@pbda.org',
+      ipAddress: '103.148.12.45',
+      browser: 'Chrome 122.0',
+      os: 'Windows 11',
+      deviceType: 'DESKTOP',
+      requestUrl: '/api/auth/login',
+      status: 'SUCCESS',
+      timestamp: new Date().toISOString()
+    },
+    {
+      id: 'LOG-100233',
+      action: 'DONOR_CREATED',
+      module: 'DONORS',
+      details: 'নতুন রক্তদাতা নিবন্ধিত: মোঃ হাফিজুর রহমান (B+), পাংশা উপজেলা',
+      actorName: 'মোঃ মেহেদী হাসান (এডমিন)',
+      actorRole: 'ADMIN',
+      actorEmail: 'admin@pbda.org',
+      targetRecordId: 'dn-101',
+      targetRecordType: 'Donor',
+      newValue: { name: 'মোঃ হাফিজুর রহমান', bloodGroup: 'B+', phone: '01711223344', district: 'Rajbari', upazila: 'Pangsha' },
+      ipAddress: '103.148.12.50',
+      browser: 'Firefox 123.0',
+      os: 'macOS Sonoma',
+      deviceType: 'DESKTOP',
+      requestUrl: '/api/donors',
+      status: 'SUCCESS',
+      timestamp: new Date(Date.now() - 3600000).toISOString()
+    },
+    {
+      id: 'LOG-100232',
+      action: 'BLOOD_REQUEST_CREATED',
+      module: 'BLOOD_REQUESTS',
+      details: 'জরুরী রক্তের চাহিদা তৈরি: O+ (২ ব্যাগ), পাংশা উপজেলা স্বাস্থ্য কমপ্লেক্স',
+      actorName: 'মোছা: শারমীন আক্তার (ভলান্টিয়ার)',
+      actorRole: 'VOLUNTEER',
+      actorEmail: 'volunteer@pbda.org',
+      targetRecordId: 'req-201',
+      targetRecordType: 'BloodRequest',
+      newValue: { patientName: 'মোসা: রহিমা খাতুন', bloodGroup: 'O+', bagsNeeded: 2, hospital: 'পাংশা উপজেলা স্বাস্থ্য কমপ্লেক্স' },
+      ipAddress: '103.148.12.88',
+      browser: 'Mobile Safari 17.2',
+      os: 'iOS 17',
+      deviceType: 'MOBILE',
+      requestUrl: '/api/blood-requests',
+      status: 'SUCCESS',
+      timestamp: new Date(Date.now() - 7200000).toISOString()
+    },
+    {
+      id: 'LOG-100231',
+      action: 'WHATSAPP_NOTIFICATION_SENT',
+      module: 'WHATSAPP',
+      details: 'হোয়াটসঅ্যাপ মেসেজ সফলভাবে প্রেরিত: ৮ জন O+ রক্তদাতাকে অ্যালার্ট পাঠানো হয়েছে।',
+      actorName: 'System Bot',
+      actorRole: 'SYSTEM',
+      requestUrl: '/api/whatsapp/send',
+      status: 'SUCCESS',
+      timestamp: new Date(Date.now() - 10800000).toISOString()
+    },
+    {
+      id: 'LOG-100230',
+      action: 'USER_ROLE_CHANGED',
+      module: 'USERS',
+      details: 'ব্যবহারকারীর ভূমিকা পরিবর্তন: মোছা: শারমীন আক্তার (VOLUNTEER ➔ ADMIN)',
+      actorName: 'ড. মো: তানভীর আহমেদ',
+      actorRole: 'SUPER_ADMIN',
+      actorEmail: 'superadmin@pbda.org',
+      targetRecordId: 'admin-3',
+      targetRecordType: 'AdminUser',
+      oldValue: { role: 'VOLUNTEER' },
+      newValue: { role: 'ADMIN' },
+      ipAddress: '103.148.12.45',
+      browser: 'Chrome 122.0',
+      os: 'Windows 11',
+      deviceType: 'DESKTOP',
+      requestUrl: '/api/users/admin-3/role',
+      status: 'SUCCESS',
+      timestamp: new Date(Date.now() - 14400000).toISOString()
+    },
+    {
+      id: 'LOG-100229',
+      action: 'FAILED_LOGIN',
+      module: 'SECURITY',
+      details: 'ভুল পাসওয়ার্ড দিয়ে লগইন করার চেষ্টা: user@unknown.com (৩ বার ব্যর্থ প্রয়াস)',
+      actorName: 'GUEST',
+      actorRole: 'GUEST',
+      ipAddress: '185.220.101.5',
+      browser: 'Chrome 120.0',
+      os: 'Linux x86_64',
+      deviceType: 'DESKTOP',
+      requestUrl: '/api/auth/login',
+      status: 'FAILED',
+      timestamp: new Date(Date.now() - 18000000).toISOString()
+    },
+    {
+      id: 'LOG-100228',
+      action: 'BACKUP_COMPLETED',
+      module: 'BACKUP',
+      details: 'সিস্টেম ডাটাবেজ অটোমেটিক ব্যাকআপ সফলভাবে সম্পন্ন হয়েছে (সাইজ: ২.৪ মেগাবাইট)।',
+      actorName: 'System Backup Worker',
+      actorRole: 'SYSTEM',
+      status: 'SUCCESS',
+      timestamp: new Date(Date.now() - 86400000).toISOString()
+    },
+    {
+      id: 'LOG-100227',
+      action: 'EXPORT_COMPLETED',
+      module: 'EXPORT',
+      details: 'রক্তদাতা ডাটাবেজ এক্সপোর্ট করা হয়েছে (Excel ფორম্যাট, ১৮৪ টি রেকর্ড)',
+      actorName: 'ড. মো: তানভীর আহমেদ',
+      actorRole: 'SUPER_ADMIN',
+      actorEmail: 'superadmin@pbda.org',
+      ipAddress: '103.148.12.45',
+      browser: 'Chrome 122.0',
+      os: 'Windows 11',
+      deviceType: 'DESKTOP',
+      requestUrl: '/api/export/donors',
+      status: 'SUCCESS',
+      timestamp: new Date(Date.now() - 90000000).toISOString()
     }
   ],
   notifications: [],
@@ -1301,23 +1419,113 @@ export const dbService = {
 
   // Audit Logs
   getAuditLogs(): AuditLog[] {
+    this.autoCleanupAuditLogs();
     return [...db.auditLogs].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   },
 
-  addAuditLog(actorName: string, actorRole: any, action: string, details: string) {
+  addAuditLog(
+    actorName: string,
+    actorRole: any,
+    action: string,
+    details: string,
+    extra?: {
+      module?: string;
+      actorEmail?: string;
+      targetRecordId?: string;
+      targetRecordType?: string;
+      oldValue?: any;
+      newValue?: any;
+      ipAddress?: string;
+      browser?: string;
+      os?: string;
+      deviceType?: string;
+      requestUrl?: string;
+      status?: 'SUCCESS' | 'FAILED' | 'WARNING';
+    }
+  ): AuditLog {
+    let module = extra?.module;
+    if (!module) {
+      if (action.includes('DONOR')) module = 'DONORS';
+      else if (action.includes('BLOOD_REQUEST') || action.includes('REQUEST')) module = 'BLOOD_REQUESTS';
+      else if (action.includes('USER') || action.includes('ROLE') || action.includes('VOLUNTEER') || action.includes('ADMIN')) module = 'USERS';
+      else if (action.includes('LOGIN') || action.includes('LOGOUT') || action.includes('PASSWORD') || action.includes('AUTH')) module = 'AUTH';
+      else if (action.includes('SETTINGS')) module = 'SETTINGS';
+      else if (action.includes('TELEGRAM')) module = 'TELEGRAM';
+      else if (action.includes('WHATSAPP')) module = 'WHATSAPP';
+      else if (action.includes('EXPORT')) module = 'EXPORT';
+      else if (action.includes('BACKUP')) module = 'BACKUP';
+      else if (action.includes('SECURITY')) module = 'SECURITY';
+      else module = 'SYSTEM';
+    }
+
     const log: AuditLog = {
-      id: `log-${Date.now().toString().slice(-6)}`,
-      actorName,
-      actorRole,
+      id: `LOG-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`,
+      actorName: actorName || 'System',
+      actorRole: actorRole || 'SYSTEM',
+      actorEmail: extra?.actorEmail,
       action,
+      module,
       details,
+      targetRecordId: extra?.targetRecordId,
+      targetRecordType: extra?.targetRecordType,
+      oldValue: extra?.oldValue,
+      newValue: extra?.newValue,
+      ipAddress: extra?.ipAddress,
+      browser: extra?.browser,
+      os: extra?.os,
+      deviceType: extra?.deviceType,
+      requestUrl: extra?.requestUrl,
+      status: extra?.status || 'SUCCESS',
       timestamp: new Date().toISOString()
     };
+
     db.auditLogs.unshift(log);
-    if (db.auditLogs.length > 500) {
-      db.auditLogs = db.auditLogs.slice(0, 500); // cap max 500 logs
+
+    if (db.auditLogs.length > 2000) {
+      db.auditLogs = db.auditLogs.slice(0, 2000);
     }
     saveDatabase();
+    return log;
+  },
+
+  clearAuditLogs(clearedBy: string, clearedByRole: any, preserveSecurityLogs: boolean = true): { clearedCount: number } {
+    const initialCount = db.auditLogs.length;
+    if (preserveSecurityLogs) {
+      db.auditLogs = db.auditLogs.filter(
+        (log) => log.module === 'SECURITY' || log.action?.includes('SECURITY') || log.status === 'FAILED'
+      );
+    } else {
+      db.auditLogs = [];
+    }
+    const clearedCount = initialCount - db.auditLogs.length;
+    saveDatabase();
+
+    this.addAuditLog(clearedBy, clearedByRole, 'AUDIT_LOGS_CLEARED', `সিস্টেমের ${clearedCount} টি অডিট লগ রেকর্ড ক্লিয়ার করা হয়েছে।`, {
+      module: 'SECURITY',
+      status: 'WARNING'
+    });
+
+    return { clearedCount };
+  },
+
+  autoCleanupAuditLogs(): number {
+    const retentionDays = db.settings.activityLogRetentionDays || 90;
+    if (retentionDays <= 0) return 0; // Never delete
+
+    const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+    const cutoffIso = new Date(cutoffMs).toISOString();
+
+    const initialCount = db.auditLogs.length;
+    db.auditLogs = db.auditLogs.filter((log) => {
+      if (log.module === 'SECURITY' || log.action?.includes('SECURITY')) return true;
+      return log.timestamp >= cutoffIso;
+    });
+
+    const removedCount = initialCount - db.auditLogs.length;
+    if (removedCount > 0) {
+      saveDatabase();
+    }
+    return removedCount;
   },
 
   // Emergency Contacts & Gallery

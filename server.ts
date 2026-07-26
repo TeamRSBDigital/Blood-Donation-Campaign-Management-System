@@ -208,19 +208,66 @@ async function startServer() {
   // ADMIN AUTH & MANAGEMENT API ROUTES
   // ----------------------------------------------------
 
+  function parseRequestMeta(req: any) {
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const uaString = req.headers['user-agent'] || '';
+    
+    let browser = 'Chrome 122.0';
+    if (uaString.includes('Firefox/')) browser = 'Firefox 123.0';
+    else if (uaString.includes('Edg/')) browser = 'Microsoft Edge';
+    else if (uaString.includes('Chrome/')) browser = 'Chrome 122.0';
+    else if (uaString.includes('Safari/')) browser = 'Safari 17.2';
+
+    let os = 'Windows 11';
+    if (uaString.includes('Win')) os = 'Windows 11';
+    else if (uaString.includes('Mac')) os = 'macOS Sonoma';
+    else if (uaString.includes('Android')) os = 'Android 14';
+    else if (uaString.includes('iPhone') || uaString.includes('iPad')) os = 'iOS 17';
+    else if (uaString.includes('Linux')) os = 'Linux x86_64';
+
+    let deviceType = 'DESKTOP';
+    if (uaString.includes('Mobi') || uaString.includes('Android') || uaString.includes('iPhone')) {
+      deviceType = 'MOBILE';
+    } else if (uaString.includes('Tablet') || uaString.includes('iPad')) {
+      deviceType = 'TABLET';
+    }
+
+    return { ipAddress, browser, os, deviceType };
+  }
+
   app.post('/api/auth/login', (req, res) => {
     const { email, password } = req.body;
+    const meta = parseRequestMeta(req);
+
     if (!email || !password) {
+      dbService.addAuditLog('GUEST', 'GUEST', 'FAILED_LOGIN', 'লগইন করার চেষ্টায় ইমেইল বা পাসওয়ার্ড অনুপস্থিত।', {
+        module: 'SECURITY',
+        ...meta,
+        requestUrl: '/api/auth/login',
+        status: 'FAILED'
+      });
       return res.status(400).json({ error: 'ইমেইল ও পাসওয়ার্ড প্রদান করুন' });
     }
 
     const admin = dbService.findAdminByEmail(email);
     if (!admin || !admin.active) {
+      dbService.addAuditLog('GUEST', 'GUEST', 'FAILED_LOGIN', `অননুমোদিত বা ভুল পাসওয়ার্ড দিয়ে লগইন চেষ্টা: ${email}`, {
+        module: 'SECURITY',
+        ...meta,
+        requestUrl: '/api/auth/login',
+        status: 'FAILED'
+      });
       return res.status(401).json({ error: 'ইমেইল বা পাসওয়ার্ড ভুল অথবা একাউন্ট নিষ্ক্রিয়' });
     }
 
     const isValid = dbService.verifyAdminPassword(email, password);
     if (!isValid) {
+      dbService.addAuditLog('GUEST', 'GUEST', 'FAILED_LOGIN', `পাসওয়ার্ড ভুল প্রদান করা হয়েছে: ${email}`, {
+        module: 'SECURITY',
+        ...meta,
+        requestUrl: '/api/auth/login',
+        status: 'FAILED'
+      });
       return res.status(401).json({ error: 'পাসওয়ার্ড সঠিক নয়' });
     }
 
@@ -235,7 +282,15 @@ async function startServer() {
       { expiresIn: '24h' }
     );
 
-    dbService.addAuditLog(admin.name, admin.role, 'LOGIN', `এডমিন লগইন সফল: ${admin.email}`);
+    dbService.addAuditLog(admin.name, admin.role, 'USER_LOGIN', `এডমিন ড্যাশবোর্ডে লগইন সফল: ${admin.email}`, {
+      module: 'AUTH',
+      actorEmail: admin.email,
+      targetRecordId: admin.id,
+      targetRecordType: 'AdminUser',
+      ...meta,
+      requestUrl: '/api/auth/login',
+      status: 'SUCCESS'
+    });
 
     res.json({
       token,
@@ -785,6 +840,30 @@ async function startServer() {
   // Audit Logs
   app.get(['/api/audit-logs', '/api/reports/audit-logs'], authMiddleware, superAdminOnly, (req, res) => {
     res.json(dbService.getAuditLogs());
+  });
+
+  app.delete('/api/audit-logs/clear', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    try {
+      const { preserveSecurityLogs } = req.body || {};
+      const result = dbService.clearAuditLogs(
+        req.user.name,
+        req.user.role,
+        preserveSecurityLogs !== false
+      );
+      res.json({
+        message: `সিস্টেমের ${result.clearedCount} টি অডিট লগ রেকর্ড সফলভাবে ক্লিয়ার করা হয়েছে।`,
+        clearedCount: result.clearedCount
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'অডিট লগ ক্লিয়ার করতে ব্যর্থ হয়েছে।' });
+    }
+  });
+
+  // Immutability Enforcement
+  app.all('/api/audit-logs/:id', authMiddleware, (req, res) => {
+    res.status(405).json({
+      error: 'অডিট লগ রেকর্ডগুলি অপরিবর্তনযোগ্য (Immutable Log System)। এককভাবে পরিমার্জন বা মুছে ফেলা নিষেধ।'
+    });
   });
 
   // ----------------------------------------------------
