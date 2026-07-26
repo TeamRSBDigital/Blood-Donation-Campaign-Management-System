@@ -611,5 +611,102 @@ export interface AutomationDashboardStats {
   failureRatePercent: number;
 }
 
+// ----------------------------------------------------
+// SYSTEM HEALTH MONITORING & DIAGNOSTICS TYPES
+// ----------------------------------------------------
+
+export type SystemHealthStatus = 'HEALTHY' | 'WARNING' | 'CRITICAL';
+export type ServiceOperationalStatus = 'OPERATIONAL' | 'DEGRADED' | 'DOWN' | 'UNKNOWN';
+
+export interface SystemOverviewHealth {
+  overallStatus: SystemHealthStatus;
+  lastHealthCheck: string;
+  nextHealthCheck: string;
+  appVersion: string;
+  environment: string;
+  serverTime: string;
+  uptimeSeconds: number;
+  uptimeFormatted: string;
+}
+
+export interface ServicesHealth {
+  database: { status: ServiceOperationalStatus; latencyMs: number; details?: string };
+  authentication: { status: ServiceOperationalStatus; details?: string };
+  storage: { status: ServiceOperationalStatus; details?: string };
+  telegram: { status: ServiceOperationalStatus; connected: boolean; details?: string };
+  whatsapp: { status: ServiceOperationalStatus; connected: boolean; details?: string };
+  notificationQueue: { status: ServiceOperationalStatus; pendingCount: number; details?: string };
+  schedulerEngine: { status: ServiceOperationalStatus; runningJobsCount: number; details?: string };
+  backupService: { status: ServiceOperationalStatus; lastBackupTime?: string; details?: string };
+}
+
+export interface DatabaseHealthMetrics {
+  connectionStatus: 'CONNECTED' | 'DISCONNECTED';
+  queryResponseTimeMs: number;
+  databaseSizeBytes: number;
+  databaseSizeFormatted: string;
+  activeConnections: number;
+  failedQueriesCount: number;
+  totalRecordsCount: number;
+  lastBackupTime?: string;
+}
+
+export interface NotificationHealthMetrics {
+  telegram: {
+    connected: boolean;
+    lastSuccessfulMessageTime?: string;
+    lastFailedMessageTime?: string;
+    pendingQueueCount: number;
+    errorRatePercent: number;
+  };
+  whatsapp: {
+    connectionStatus: string;
+    pendingQueueCount: number;
+    lastDeliveryTime?: string;
+  };
+}
+
+export interface AutomationHealthMetrics {
+  schedulerRunning: boolean;
+  failedJobsCount: number;
+  queuedJobsCount: number;
+  runningJobsCount: number;
+  totalJobsCount: number;
+  averageExecutionTimeMs: number;
+}
+
+export interface SystemResourceMetrics {
+  cpuUsagePercent: number;
+  memoryUsedMB: number;
+  memoryTotalMB: number;
+  memoryPercent: number;
+  diskUsedGB: number;
+  diskTotalGB: number;
+  diskPercent: number;
+  uptimeSeconds: number;
+}
+
+export interface HealthAlert {
+  id: string;
+  title: string;
+  message: string;
+  severity: 'CRITICAL' | 'WARNING' | 'INFO';
+  service: string;
+  timestamp: string;
+  resolved: boolean;
+}
+
+export interface SystemHealthReport {
+  overview: SystemOverviewHealth;
+  services: ServicesHealth;
+  database: DatabaseHealthMetrics;
+  notifications: NotificationHealthMetrics;
+  automation: AutomationHealthMetrics;
+  resources: SystemResourceMetrics;
+  alerts: HealthAlert[];
+  recentErrors: Array<{ id: string; timestamp: string; message: string; source: string; details?: string }>;
+}
+
+
 
 

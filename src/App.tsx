@@ -28,10 +28,12 @@ const AppContent: React.FC = () => {
         pathname.includes('/dashboard') ||
         pathname.includes('/admin') ||
         pathname.includes('/automation') ||
+        pathname.includes('/system-health') ||
         pathname.includes('/backup')
       ) {
         return 'admin';
       }
+
       if (
         pathname.includes('/request-blood') ||
         pathname.includes('/request_blood')

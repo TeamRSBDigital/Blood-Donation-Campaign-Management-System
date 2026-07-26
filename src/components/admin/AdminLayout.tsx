@@ -16,6 +16,7 @@ import { WhatsAppQrManager } from './WhatsAppQrManager.js';
 import { DataExportCenter } from './DataExportCenter.js';
 import { BackupRestoreManager } from './BackupRestoreManager.js';
 import { AutomationManager } from './AutomationManager.js';
+import { SystemHealthManager } from './SystemHealthManager.js';
 import { ForbiddenPage } from './ForbiddenPage.js';
 import { UserProfileModal } from './UserProfileModal.js';
 import { ChangePasswordModal } from './ChangePasswordModal.js';
@@ -34,7 +35,9 @@ import {
   Download,
   Database,
   Cpu,
+  Activity,
   LogOut,
+
   ArrowLeft,
   HeartHandshake,
   Menu,
@@ -93,9 +96,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       ) {
         return 'automation';
       }
+      if (
+        pathname.includes('system-health') ||
+        tabParam === 'system-health'
+      ) {
+        return 'system-health';
+      }
     }
     return 'overview';
   });
+
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -173,11 +183,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
       requiredRoles: ['SUPER_ADMIN'],
     },
     {
+      id: 'system-health',
+      label: 'সিস্টেম হেলথ মনিটরিং',
+      icon: Activity,
+      requiredRoles: ['SUPER_ADMIN'],
+    },
+    {
       id: 'export',
       label: 'ডাটা এক্সপোর্ট সেন্টার',
       icon: Download,
       requiredRoles: ['SUPER_ADMIN'],
     },
+
     {
       id: 'settings',
       label: 'সিস্টেম সেটিং',
@@ -207,23 +224,28 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
         activeTab === 'audit' ||
         activeTab === 'backup' ||
         activeTab === 'automation' ||
+        activeTab === 'system-health' ||
         tabParam === 'settings' ||
         tabParam === 'telegram' ||
         tabParam === 'activity-logs' ||
         tabParam === 'audit' ||
         tabParam === 'backup' ||
         tabParam === 'automation' ||
+        tabParam === 'system-health' ||
         pathname.includes('/settings') ||
         pathname.includes('/telegram') ||
         pathname.includes('/activity-logs') ||
         pathname.includes('/audit') ||
         pathname.includes('/backup') ||
         pathname.includes('/automation') ||
+        pathname.includes('/system-health') ||
         hash.includes('settings') ||
         hash.includes('telegram') ||
         hash.includes('activity-logs') ||
         hash.includes('backup') ||
-        hash.includes('automation');
+        hash.includes('automation') ||
+        hash.includes('system-health');
+
 
       if (isRestrictedPath && currentUserRole !== 'SUPER_ADMIN') {
         setActiveTab('overview');
@@ -574,7 +596,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ onBackToPublicSite }) 
               {activeTab === 'audit' && <AuditLogViewer />}
               {activeTab === 'backup' && <BackupRestoreManager />}
               {activeTab === 'automation' && <AutomationManager />}
+              {activeTab === 'system-health' && <SystemHealthManager />}
               {activeTab === 'export' && <DataExportCenter />}
+
               {activeTab === 'settings' && <SystemSettings />}
             </>
           )}

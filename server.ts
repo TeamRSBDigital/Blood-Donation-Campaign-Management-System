@@ -1837,6 +1837,41 @@ async function startServer() {
   });
 
   // ----------------------------------------------------
+  // SYSTEM HEALTH MONITORING & DIAGNOSTICS ENDPOINTS
+  // ----------------------------------------------------
+
+  // Get current system health report
+  app.get('/api/system-health/report', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const report = dbService.getSystemHealthReport();
+    res.json(report);
+  });
+
+  // Run manual health check diagnostics
+  app.post('/api/system-health/run-check', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const report = dbService.runSystemHealthDiagnostics(req.user.name);
+    res.json(report);
+  });
+
+  // Test Database Health
+  app.post('/api/system-health/test-db', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const result = dbService.testDatabaseHealth(req.user.name);
+    res.json(result);
+  });
+
+  // Test Telegram Health
+  app.post('/api/system-health/test-telegram', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const result = dbService.testTelegramHealth(req.user.name);
+    res.json(result);
+  });
+
+  // Test Scheduler Health
+  app.post('/api/system-health/test-scheduler', authMiddleware, superAdminOnly, (req: any, res: any) => {
+    const result = dbService.testSchedulerHealth(req.user.name);
+    res.json(result);
+  });
+
+
+  // ----------------------------------------------------
   // VITE & STATIC FILES SERVING
   // ----------------------------------------------------
   if (process.env.NODE_ENV !== 'production') {
