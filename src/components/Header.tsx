@@ -52,16 +52,16 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-200 transition-colors shadow-xs">
-      {/* Top Emergency Hotline Strip */}
-      <div className="bg-red-600 text-white text-xs py-1.5 px-4">
+      {/* Desktop Top Information Bar */}
+      <div className="hidden md:block bg-red-600 text-white text-xs py-1.5 px-4">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-2">
           <div className="flex items-center gap-2 font-medium">
             <span className="inline-flex items-center justify-center bg-white/20 p-1 rounded-full animate-pulse">
               <Droplet className="w-3.5 h-3.5 text-white fill-current" />
             </span>
             <span className="font-semibold">{t.subTitle}</span>
-            <span className="hidden sm:inline opacity-75">|</span>
-            <span className="hidden sm:inline text-red-100 italic">{t.motto}</span>
+            <span className="opacity-75">|</span>
+            <span className="text-red-100 italic">{t.motto}</span>
           </div>
           <div className="flex items-center gap-3">
             <a
@@ -75,8 +75,19 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Main Header Navigation Bar (Exact 72px height) */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between gap-4">
+      {/* Mobile Top Emergency Helpline Bar */}
+      <div className="md:hidden bg-[#DC2626] text-white h-[42px] px-3 flex items-center justify-center text-xs font-medium leading-none whitespace-nowrap overflow-hidden">
+        <a
+          href="tel:01812999888"
+          className="flex items-center justify-center gap-1.5 text-white whitespace-nowrap text-xs font-medium"
+        >
+          <Phone className="w-3.5 h-3.5 fill-current shrink-0" />
+          <span>📞 ২৪/৭ হেল্পলাইন: <strong className="font-bold">01812999888</strong></span>
+        </a>
+      </div>
+
+      {/* Main Header Navigation Bar (Compact Height on Mobile) */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 md:h-[72px] flex items-center justify-between gap-2 md:gap-4">
         {/* Logo Area */}
         <button
           onClick={() => {
@@ -85,7 +96,7 @@ export const Header: React.FC<HeaderProps> = ({
           }}
           className="flex items-center gap-2 md:gap-3 text-left group shrink-0"
         >
-          <div className="w-8 h-8 md:w-10 md:h-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-black text-base md:text-xl shadow-md group-hover:bg-red-700 transition-all">
+          <div className="w-7 h-7 md:w-10 md:h-10 bg-red-600 rounded-lg md:rounded-xl flex items-center justify-center text-white font-black text-xs md:text-xl shadow-md group-hover:bg-red-700 transition-all shrink-0">
             প
           </div>
           <div>
